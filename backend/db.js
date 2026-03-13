@@ -25,7 +25,9 @@ db.exec(`
     type           TEXT     NOT NULL DEFAULT 'http',
     snmp_community TEXT     DEFAULT 'public',
     snmp_oid       TEXT     DEFAULT '1.3.6.1.2.1.1.1.0',
-    snmp_port      INTEGER  DEFAULT 161
+    snmp_port      INTEGER  DEFAULT 161,
+    sla_target     REAL     DEFAULT 99.0,
+    criticality    TEXT     DEFAULT 'medium'
   );
 
   CREATE TABLE IF NOT EXISTS metrics (
@@ -57,6 +59,10 @@ if (!hasColumn(db, 'devices', 'snmp_oid'))
   db.exec("ALTER TABLE devices ADD COLUMN snmp_oid TEXT DEFAULT '1.3.6.1.2.1.1.1.0'");
 if (!hasColumn(db, 'devices', 'snmp_port'))
   db.exec('ALTER TABLE devices ADD COLUMN snmp_port INTEGER DEFAULT 161');
+if (!hasColumn(db, 'devices', 'sla_target'))
+  db.exec('ALTER TABLE devices ADD COLUMN sla_target REAL DEFAULT 99.0');
+if (!hasColumn(db, 'devices', 'criticality'))
+  db.exec("ALTER TABLE devices ADD COLUMN criticality TEXT DEFAULT 'medium'")
 
 // Seed admin user on startup if credentials are provided and user doesn't exist yet.
 const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;

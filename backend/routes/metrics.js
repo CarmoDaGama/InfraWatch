@@ -36,8 +36,8 @@ export default function metricsRouter(db) {
 
       const rows = db
         .prepare(
-          `SELECT d.id, d.name, d.url,
-                  COUNT(m.id)                                    AS total,
+          `SELECT d.id, d.name, d.url, d.sla_target, d.criticality,
+                  COUNT(m.id)                                       AS total,
                   SUM(CASE WHEN m.status = 'up' THEN 1 ELSE 0 END) AS up_count
            FROM devices d
            LEFT JOIN metrics m
@@ -47,15 +47,24 @@ export default function metricsRouter(db) {
         )
         .all(`-${hours} hours`);
 
-      const uptime = rows.map((r) => ({
-        id: r.id,
-        name: r.name,
-        url: r.url,
-        uptime_pct:
-          r.total > 0 ? Math.round((r.up_count / r.total) * 10000) / 100 : null,
-        total_checks: r.total,
-        up_count: r.up_count,
-      }));
+      const uptime = rows.map((r) => {
+        const uptime_pct =
+          r.total > 0 ? Math.round((r.up_count / r.total) * 10000) / 100 : null;
+        const sla_target   = r.sla_target   ?? 99.0;
+        const criticality  = r.criticality  ?? 'medium';
+        const sla_met      = uptime_pct !== null ? uptime_pct >= sla_target : null;
+        return {
+          id: r.id,
+          name: r.name,
+          url: r.url,
+          sla_target,
+          criticality,
+          uptime_pct,
+          sla_met,
+          total_checks: r.total,
+          up_count: r.up_count,
+        };
+      });
 
       res.json(uptime);
     } catch (err) {

@@ -3,8 +3,9 @@ import Header from './components/Header.jsx'
 import DeviceTable from './components/DeviceTable.jsx'
 import AddDeviceForm from './components/AddDeviceForm.jsx'
 import UptimeChart from './components/UptimeChart.jsx'
+import SlaPanel from './components/SlaPanel.jsx'
 import LoginPage from './components/LoginPage.jsx'
-import { getDevices, deleteDevice, getUptimeStats } from './api.js'
+import { getDevices, deleteDevice, updateDevice, getUptimeStats } from './api.js'
 
 const REFRESH_INTERVAL = 5000
 
@@ -89,6 +90,11 @@ export default function App() {
     }
   }
 
+  async function handleUpdateDevice(id, data) {
+    await updateDevice(id, data)
+    await fetchData()
+  }
+
   if (!token) {
     return <LoginPage onLogin={handleLogin} />
   }
@@ -128,6 +134,8 @@ export default function App() {
             <DeviceTable devices={devices} onDelete={handleDelete} loading={loading} />
 
             <UptimeChart uptimeStats={uptimeStats} />
+
+            <SlaPanel uptimeStats={uptimeStats} onUpdate={handleUpdateDevice} />
           </>
         )}
       </main>
