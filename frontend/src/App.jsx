@@ -28,7 +28,13 @@ export default function App() {
         getDevices(),
         getUptimeStats(24),
       ])
-      setDevices(devicesRes.data)
+      const mapped = devicesRes.data.map((d) => ({
+        ...d,
+        status: d.last_status ?? null,
+        lastChecked: d.last_checked ?? null,
+        responseTime: d.last_response_time ?? null,
+      }))
+      setDevices(mapped)
       setUptimeStats(uptimeRes.data)
       setError(null)
     } catch (err) {
