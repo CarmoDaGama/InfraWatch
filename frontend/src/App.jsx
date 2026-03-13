@@ -3,6 +3,7 @@ import Header from './components/Header.jsx'
 import DeviceTable from './components/DeviceTable.jsx'
 import AddDeviceForm from './components/AddDeviceForm.jsx'
 import UptimeChart from './components/UptimeChart.jsx'
+import LoginPage from './components/LoginPage.jsx'
 import { getDevices, deleteDevice, getUptimeStats } from './api.js'
 
 const REFRESH_INTERVAL = 5000
@@ -17,12 +18,35 @@ function StatCard({ label, value, color }) {
 }
 
 export default function App() {
+  // Lazy initialiser reads localStorage once on mount — no flicker on refresh.
+  const [token, setToken] = useState(() => localStorage.getItem('token'))
   const [devices, setDevices] = useState([])
   const [uptimeStats, setUptimeStats] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  function handleLogin(newToken) {
+    localStorage.setItem('token', newToken)
+    setToken(newToken)
+  }
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('token')
+    setToken(null)
+    setDevices([])
+    setUptimeStats([])
+    setLoading(true)
+    setError(null)
+  }, [])
+
+  // Listen for 401 auto-logout events fired by the axios response interceptor.
+  useEffect(() => {
+    window.addEventListener('auth:logout', handleLogout)
+    return () => window.removeEventListener('auth:logout', handleLogout)
+  }, [handleLogout])
+
   const fetchData = useCallback(async () => {
+    if (!token) return
     try {
       const [devicesRes, uptimeRes] = await Promise.all([
         getDevices(),
@@ -38,6 +62,7 @@ export default function App() {
       setUptimeStats(uptimeRes.data)
       setError(null)
     } catch (err) {
+      if (err.response?.status === 401) return // interceptor already fired auth:logout
       setError(
         err.code === 'ERR_NETWORK'
           ? 'Cannot reach the InfraWatch API. Make sure the backend is running on port 3001.'
@@ -46,13 +71,14 @@ export default function App() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [token])
 
   useEffect(() => {
+    if (!token) return
     fetchData()
     const timer = setInterval(fetchData, REFRESH_INTERVAL)
     return () => clearInterval(timer)
-  }, [fetchData])
+  }, [fetchData, token])
 
   async function handleDelete(id) {
     try {
@@ -63,12 +89,16 @@ export default function App() {
     }
   }
 
+  if (!token) {
+    return <LoginPage onLogin={handleLogin} />
+  }
+
   const upCount = devices.filter((d) => d.status === 'up').length
   const downCount = devices.filter((d) => d.status === 'down').length
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      <Header onLogout={handleLogout} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {error && (

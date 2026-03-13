@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import bcrypt from 'bcryptjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -30,6 +31,24 @@ db.exec(`
     response_time REAL,
     checked_at    DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    email         TEXT    NOT NULL UNIQUE,
+    password_hash TEXT    NOT NULL,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
+
+// Seed admin user on startup if credentials are provided and user doesn't exist yet.
+const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
+if (ADMIN_EMAIL && ADMIN_PASSWORD) {
+  const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(ADMIN_EMAIL);
+  if (!exists) {
+    const hash = bcrypt.hashSync(ADMIN_PASSWORD, 10);
+    db.prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)').run(ADMIN_EMAIL, hash);
+    console.log(`Admin user seeded: ${ADMIN_EMAIL}`);
+  }
+}
 
 export default db;
