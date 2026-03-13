@@ -38,6 +38,7 @@ export default function App() {
     setToken(null)
     setDevices([])
     setUptimeStats([])
+    setSelectedDevice(null)
     setLoading(true)
     setError(null)
   }, [])
@@ -63,6 +64,11 @@ export default function App() {
       }))
       setDevices(mapped)
       setUptimeStats(uptimeRes.data)
+      // Keep the open detail view in sync with the refreshed device data
+      setSelectedDevice((prev) => {
+        if (!prev) return null
+        return mapped.find((d) => d.id === prev.id) ?? prev
+      })
       setError(null)
     } catch (err) {
       if (err.response?.status === 401) return // interceptor already fired auth:logout
@@ -151,6 +157,7 @@ export default function App() {
         <MetricsDrawer
           device={selectedDevice}
           onClose={() => setSelectedDevice(null)}
+          onUpdate={handleUpdateDevice}
         />
       )}
     </div>
