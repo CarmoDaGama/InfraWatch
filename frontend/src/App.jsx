@@ -4,6 +4,7 @@ import DeviceTable from './components/DeviceTable.jsx'
 import AddDeviceForm from './components/AddDeviceForm.jsx'
 import UptimeChart from './components/UptimeChart.jsx'
 import SlaPanel from './components/SlaPanel.jsx'
+import MetricsDrawer from './components/MetricsDrawer.jsx'
 import LoginPage from './components/LoginPage.jsx'
 import { getDevices, deleteDevice, updateDevice, getUptimeStats } from './api.js'
 
@@ -25,6 +26,7 @@ export default function App() {
   const [uptimeStats, setUptimeStats] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [selectedDevice, setSelectedDevice] = useState(null)
 
   function handleLogin(newToken) {
     localStorage.setItem('token', newToken)
@@ -131,7 +133,12 @@ export default function App() {
 
             <AddDeviceForm onAdd={fetchData} />
 
-            <DeviceTable devices={devices} onDelete={handleDelete} loading={loading} />
+            <DeviceTable
+              devices={devices}
+              onDelete={handleDelete}
+              onViewHistory={setSelectedDevice}
+              loading={loading}
+            />
 
             <UptimeChart uptimeStats={uptimeStats} />
 
@@ -139,6 +146,13 @@ export default function App() {
           </>
         )}
       </main>
+
+      {selectedDevice && (
+        <MetricsDrawer
+          device={selectedDevice}
+          onClose={() => setSelectedDevice(null)}
+        />
+      )}
     </div>
   )
 }

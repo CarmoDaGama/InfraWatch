@@ -38,7 +38,7 @@ function SkeletonRow() {
   )
 }
 
-export default function DeviceTable({ devices, onDelete, loading }) {
+export default function DeviceTable({ devices, onDelete, onViewHistory, loading }) {
   return (
     <div className="bg-white rounded-xl shadow overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100">
@@ -107,13 +107,22 @@ export default function DeviceTable({ devices, onDelete, loading }) {
                     {formatLastChecked(device.lastChecked)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <button
-                      onClick={() => onDelete(device.id)}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-sm font-medium transition-colors"
-                      title="Delete device"
-                    >
-                      ✕ Remove
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => onViewHistory(device)}
+                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded px-2 py-1 text-sm font-medium transition-colors"
+                        title="Ver histórico de métricas"
+                      >
+                        Histórico
+                      </button>
+                      <button
+                        onClick={() => onDelete(device.id)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-sm font-medium transition-colors"
+                        title="Delete device"
+                      >
+                        ✕ Remover
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
