@@ -16,6 +16,7 @@ export default function AddDeviceForm({ onAdd }) {
   const [snmpCommunity, setSnmpCommunity] = useState('public')
   const [snmpOid,       setSnmpOid]       = useState('1.3.6.1.2.1.1.1.0')
   const [snmpPort,      setSnmpPort]      = useState('161')
+  const [checkIntervalSeconds, setCheckIntervalSeconds] = useState('60')
   const [errors,        setErrors]        = useState({})
   const [submitting,    setSubmitting]    = useState(false)
 
@@ -31,6 +32,10 @@ export default function AddDeviceForm({ onAdd }) {
     if (type === 'snmp') {
       const p = parseInt(snmpPort, 10)
       if (isNaN(p) || p < 1 || p > 65535) errs.snmpPort = 'Port must be 1–65535.'
+    }
+    const intervalNum = Number(checkIntervalSeconds)
+    if (!Number.isInteger(intervalNum) || intervalNum < 5 || intervalNum > 3600) {
+      errs.checkInterval = 'Interval must be an integer between 5 and 3600 seconds.'
     }
     return errs
   }
@@ -55,9 +60,10 @@ export default function AddDeviceForm({ onAdd }) {
         snmp_community: snmpCommunity.trim() || 'public',
         snmp_oid:       snmpOid.trim()       || '1.3.6.1.2.1.1.1.0',
         snmp_port:      parseInt(snmpPort, 10) || 161,
+        check_interval_seconds: parseInt(checkIntervalSeconds, 10) || 60,
       })
       setName(''); setUrl(''); setType('http')
-      setSnmpCommunity('public'); setSnmpOid('1.3.6.1.2.1.1.1.0'); setSnmpPort('161')
+      setSnmpCommunity('public'); setSnmpOid('1.3.6.1.2.1.1.1.0'); setSnmpPort('161'); setCheckIntervalSeconds('60')
       onAdd()
     } catch (err) {
       const msg = err.response?.data?.error || err.response?.data?.message
@@ -172,6 +178,23 @@ export default function AddDeviceForm({ onAdd }) {
             </div>
           </div>
         )}
+
+        <div className="w-full sm:w-56 mt-4">
+          <label htmlFor="check-interval" className="block text-sm font-medium text-gray-700 mb-1">
+            Check Interval (seconds)
+          </label>
+          <input
+            id="check-interval"
+            type="number"
+            min="5"
+            max="3600"
+            step="1"
+            value={checkIntervalSeconds}
+            onChange={(e) => setCheckIntervalSeconds(e.target.value)}
+            className={`${INPUT_CLASS} ${errors.checkInterval ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+          />
+          {errors.checkInterval && <p className="mt-1 text-xs text-red-600">{errors.checkInterval}</p>}
+        </div>
 
         {/* Submit row */}
         <div className="mt-4 flex items-center gap-4">

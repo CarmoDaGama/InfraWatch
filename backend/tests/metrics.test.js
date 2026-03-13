@@ -3,8 +3,11 @@ import Database from 'better-sqlite3';
 import express from 'express';
 import metricsRouter from '../routes/metrics.js';
 
+const openDbs = [];
+
 function buildApp() {
   const db = new Database(':memory:');
+  openDbs.push(db);
   db.pragma('foreign_keys = ON');
   db.exec(`
     CREATE TABLE devices (
@@ -16,7 +19,10 @@ function buildApp() {
       type           TEXT     NOT NULL DEFAULT 'http',
       snmp_community TEXT     DEFAULT 'public',
       snmp_oid       TEXT     DEFAULT '1.3.6.1.2.1.1.1.0',
-      snmp_port      INTEGER  DEFAULT 161
+      snmp_port      INTEGER  DEFAULT 161,
+      sla_target     REAL     DEFAULT 99.0,
+      criticality    TEXT     DEFAULT 'medium',
+      check_interval_seconds INTEGER DEFAULT 60
     );
     CREATE TABLE metrics (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,6 +52,17 @@ function buildApp() {
 }
 
 describe('Metrics API', () => {
+  afterEach(() => {
+    while (openDbs.length > 0) {
+      const db = openDbs.pop();
+      try {
+        db.close();
+      } catch {
+        // ignore close errors during test teardown
+      }
+    }
+  });
+
   test('GET /api/metrics returns 200', async () => {
     const { app } = buildApp();
     const res = await request(app).get('/api/metrics');

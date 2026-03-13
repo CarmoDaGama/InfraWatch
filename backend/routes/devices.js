@@ -2,6 +2,15 @@ import { Router } from 'express';
 
 const VALID_TYPES        = ['http', 'ping', 'snmp'];
 const VALID_CRITICALITY  = ['low', 'medium', 'high', 'critical'];
+const MIN_CHECK_INTERVAL_SECONDS = 5;
+const MAX_CHECK_INTERVAL_SECONDS = 3600;
+
+function parseCheckIntervalSeconds(value) {
+  const num = Number(value);
+  if (!Number.isInteger(num)) return null;
+  if (num < MIN_CHECK_INTERVAL_SECONDS || num > MAX_CHECK_INTERVAL_SECONDS) return null;
+  return num;
+}
 
 export default function devicesRouter(db) {
   const router = Router();
@@ -40,6 +49,7 @@ export default function devicesRouter(db) {
       snmp_port      = 161,
       sla_target     = 99.0,
       criticality    = 'medium',
+      check_interval_seconds = 60,
     } = req.body ?? {};
 
     if (!name || !String(name).trim()) {
@@ -65,12 +75,20 @@ export default function devicesRouter(db) {
     if (!VALID_CRITICALITY.includes(criticality)) {
       return res.status(400).json({ error: `criticality must be one of: ${VALID_CRITICALITY.join(', ')}` });
     }
+    const checkIntervalNum = parseCheckIntervalSeconds(check_interval_seconds);
+    if (checkIntervalNum === null) {
+      return res.status(400).json({
+        error: `check_interval_seconds must be an integer between ${MIN_CHECK_INTERVAL_SECONDS} and ${MAX_CHECK_INTERVAL_SECONDS}`,
+      });
+    }
 
     try {
       const result = db
         .prepare(
-          `INSERT INTO devices (name, url, type, snmp_community, snmp_oid, snmp_port, sla_target, criticality)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO devices (
+             name, url, type, snmp_community, snmp_oid, snmp_port, sla_target, criticality, check_interval_seconds
+           )
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           String(name).trim(),
@@ -81,6 +99,7 @@ export default function devicesRouter(db) {
           type === 'snmp' ? portNum : 161,
           slaNum,
           criticality,
+          checkIntervalNum,
         );
       const device = db
         .prepare('SELECT * FROM devices WHERE id = ?')
@@ -95,10 +114,10 @@ export default function devicesRouter(db) {
   });
 
   router.patch('/:id', (req, res) => {
-    const { sla_target, criticality } = req.body ?? {};
+    const { sla_target, criticality, check_interval_seconds } = req.body ?? {};
 
-    if (sla_target === undefined && criticality === undefined) {
-      return res.status(400).json({ error: 'Provide at least one of: sla_target, criticality' });
+    if (sla_target === undefined && criticality === undefined && check_interval_seconds === undefined) {
+      return res.status(400).json({ error: 'Provide at least one of: sla_target, criticality, check_interval_seconds' });
     }
 
     const updates = [];
@@ -119,6 +138,17 @@ export default function devicesRouter(db) {
       }
       updates.push('criticality = ?');
       params.push(criticality);
+    }
+
+    if (check_interval_seconds !== undefined) {
+      const checkIntervalNum = parseCheckIntervalSeconds(check_interval_seconds);
+      if (checkIntervalNum === null) {
+        return res.status(400).json({
+          error: `check_interval_seconds must be an integer between ${MIN_CHECK_INTERVAL_SECONDS} and ${MAX_CHECK_INTERVAL_SECONDS}`,
+        });
+      }
+      updates.push('check_interval_seconds = ?');
+      params.push(checkIntervalNum);
     }
 
     params.push(req.params.id);

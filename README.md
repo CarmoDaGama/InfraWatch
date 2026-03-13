@@ -8,7 +8,7 @@ Uma plataforma de monitoramento em tempo real de infraestruturas com dashboards 
 
 ## Features
 
-- 🟢 **Real-time monitoring** – HTTP polling every 5 seconds per device
+- 🟢 **Real-time monitoring** – polling interval configurable per device (RNF02)
 - 📊 **Dashboard** – live status table + 24-hour uptime bar chart
 - 🔔 **Alerts** – email (Nodemailer) and/or Telegram notifications on status change
 - ➕ **Device management** – add/remove devices via a web form
@@ -75,7 +75,7 @@ Copy `backend/.env.example` to `backend/.env` and adjust:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `3001` | Backend HTTP port |
-| `MONITOR_INTERVAL` | `5000` | Polling interval in milliseconds |
+| `MONITOR_INTERVAL` | `5000` | Fallback polling interval in milliseconds (used when a device has no custom interval) |
 | `EMAIL_ENABLED` | `false` | Enable email alerts |
 | `EMAIL_HOST` | `smtp.gmail.com` | SMTP server |
 | `EMAIL_PORT` | `587` | SMTP port |
@@ -94,7 +94,8 @@ Copy `backend/.env.example` to `backend/.env` and adjust:
 |--------|----------|-------------|
 | GET | `/api/health` | Health check |
 | GET | `/api/devices` | List all devices with latest status |
-| POST | `/api/devices` | Add a device `{ name, url }` |
+| POST | `/api/devices` | Add a device `{ name, url, type, check_interval_seconds, ... }` |
+| PATCH | `/api/devices/:id` | Update device SLA/criticality/interval |
 | DELETE | `/api/devices/:id` | Remove a device |
 | GET | `/api/metrics` | Query metrics (`device_id`, `hours`, `limit`) |
 | GET | `/api/metrics/uptime` | Uptime % per device (`hours`) |

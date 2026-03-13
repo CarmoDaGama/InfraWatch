@@ -3,8 +3,11 @@ import Database from 'better-sqlite3';
 import express from 'express';
 import devicesRouter from '../routes/devices.js';
 
+const openDbs = [];
+
 function buildApp() {
   const db = new Database(':memory:');
+  openDbs.push(db);
   db.pragma('foreign_keys = ON');
   db.exec(`
     CREATE TABLE devices (
@@ -16,7 +19,10 @@ function buildApp() {
       type           TEXT     NOT NULL DEFAULT 'http',
       snmp_community TEXT     DEFAULT 'public',
       snmp_oid       TEXT     DEFAULT '1.3.6.1.2.1.1.1.0',
-      snmp_port      INTEGER  DEFAULT 161
+      snmp_port      INTEGER  DEFAULT 161,
+      sla_target     REAL     DEFAULT 99.0,
+      criticality    TEXT     DEFAULT 'medium',
+      check_interval_seconds INTEGER DEFAULT 60
     );
     CREATE TABLE metrics (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,6 +39,17 @@ function buildApp() {
 }
 
 describe('Devices API', () => {
+  afterEach(() => {
+    while (openDbs.length > 0) {
+      const db = openDbs.pop();
+      try {
+        db.close();
+      } catch {
+        // ignore close errors during test teardown
+      }
+    }
+  });
+
   test('GET /api/devices returns 200 with array', async () => {
     const { app } = buildApp();
     const res = await request(app).get('/api/devices');
@@ -49,6 +66,7 @@ describe('Devices API', () => {
     expect(res.body.name).toBe('Test Device');
     expect(res.body.url).toBe('http://example.com');
     expect(res.body.id).toBeDefined();
+    expect(res.body.check_interval_seconds).toBe(60);
   });
 
   test('POST /api/devices returns 400 with missing name', async () => {
@@ -120,11 +138,13 @@ describe('Devices API', () => {
         snmp_community: 'private',
         snmp_oid: '1.3.6.1.2.1.2.2.1.10.1',
         snmp_port: 1161,
+        check_interval_seconds: 120,
       });
     expect(res.status).toBe(201);
     expect(res.body.type).toBe('snmp');
     expect(res.body.snmp_community).toBe('private');
     expect(res.body.snmp_port).toBe(1161);
+    expect(res.body.check_interval_seconds).toBe(120);
   });
 
   test('POST returns 400 for invalid type', async () => {
@@ -152,5 +172,28 @@ describe('Devices API', () => {
       .send({ name: 'BadPort', url: '10.0.0.1', type: 'snmp', snmp_port: 99999 });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/snmp_port/);
+  });
+
+  test('POST returns 400 when check_interval_seconds is outside allowed range', async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .post('/api/devices')
+      .send({ name: 'TooFast', url: 'http://fast.example.com', check_interval_seconds: 1 });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/check_interval_seconds/);
+  });
+
+  test('PATCH /api/devices/:id updates check_interval_seconds', async () => {
+    const { app } = buildApp();
+    const created = await request(app)
+      .post('/api/devices')
+      .send({ name: 'Patch Interval', url: 'http://patch.example.com' });
+
+    const res = await request(app)
+      .patch(`/api/devices/${created.body.id}`)
+      .send({ check_interval_seconds: 300 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.check_interval_seconds).toBe(300);
   });
 });

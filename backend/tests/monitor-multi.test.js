@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import Database from 'better-sqlite3';
 
 // All jest.unstable_mockModule calls must appear before any dynamic import
 // of the module under test (ESM module mock system requirement).
@@ -29,7 +30,29 @@ jest.unstable_mockModule('axios', () => ({
   default: { get: mockAxiosGet },
 }));
 
-const { checkDevice, checkPing, checkSnmp } = await import('../monitor.js');
+const { checkDevice, checkPing, checkSnmp, startMonitoring, stopMonitoring } = await import('../monitor.js');
+
+function buildSchedulerDb() {
+  const db = new Database(':memory:');
+  db.exec(`
+    CREATE TABLE devices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      enabled INTEGER DEFAULT 1,
+      type TEXT DEFAULT 'http',
+      check_interval_seconds INTEGER
+    );
+    CREATE TABLE metrics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      device_id INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      response_time REAL,
+      checked_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  return db;
+}
 
 // ── Ping tests ────────────────────────────────────────────────────────────────
 
@@ -162,5 +185,67 @@ describe('checkDevice dispatcher', () => {
     const result = await checkDevice({ url: 'http://example.com' });
     expect(result.status).toBe('up');
     expect(mockAxiosGet).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('startMonitoring scheduler', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    mockAxiosGet.mockReset();
+    mockAxiosGet.mockResolvedValue({ status: 200 });
+  });
+
+  afterEach(() => {
+    stopMonitoring();
+    jest.useRealTimers();
+  });
+
+  test('runs faster devices more frequently using check_interval_seconds', async () => {
+    const db = buildSchedulerDb();
+    const fastId = db
+      .prepare('INSERT INTO devices (name, url, type, check_interval_seconds) VALUES (?, ?, ?, ?)')
+      .run('Fast', 'http://fast.test', 'http', 2).lastInsertRowid;
+    const slowId = db
+      .prepare('INSERT INTO devices (name, url, type, check_interval_seconds) VALUES (?, ?, ?, ?)')
+      .run('Slow', 'http://slow.test', 'http', 6).lastInsertRowid;
+
+    startMonitoring(db, jest.fn());
+    await jest.advanceTimersByTimeAsync(7000);
+
+    const fastChecks = db.prepare('SELECT COUNT(*) AS c FROM metrics WHERE device_id = ?').get(fastId).c;
+    const slowChecks = db.prepare('SELECT COUNT(*) AS c FROM metrics WHERE device_id = ?').get(slowId).c;
+
+    expect(fastChecks).toBeGreaterThan(slowChecks);
+    expect(fastChecks).toBeGreaterThanOrEqual(3);
+    expect(slowChecks).toBeGreaterThanOrEqual(1);
+    db.close();
+  });
+
+  test('uses MONITOR_INTERVAL fallback when check_interval_seconds is missing', async () => {
+    const db = buildSchedulerDb();
+    const deviceId = db
+      .prepare('INSERT INTO devices (name, url, type, check_interval_seconds) VALUES (?, ?, ?, ?)')
+      .run('Legacy', 'http://legacy.test', 'http', null).lastInsertRowid;
+
+    const originalMonitorInterval = process.env.MONITOR_INTERVAL;
+    process.env.MONITOR_INTERVAL = '5000';
+    try {
+      startMonitoring(db, jest.fn());
+      await jest.advanceTimersByTimeAsync(4500);
+
+      const beforeFallbackWindow = db
+        .prepare('SELECT COUNT(*) AS c FROM metrics WHERE device_id = ?')
+        .get(deviceId).c;
+      expect(beforeFallbackWindow).toBe(1);
+
+      await jest.advanceTimersByTimeAsync(1000);
+      const afterFallbackWindow = db
+        .prepare('SELECT COUNT(*) AS c FROM metrics WHERE device_id = ?')
+        .get(deviceId).c;
+      expect(afterFallbackWindow).toBeGreaterThanOrEqual(2);
+    } finally {
+      process.env.MONITOR_INTERVAL = originalMonitorInterval;
+      db.close();
+    }
   });
 });

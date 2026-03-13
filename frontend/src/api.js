@@ -37,6 +37,7 @@ export const createDevice = (data) => api.post('/devices', {
   snmp_community: data.snmp_community ?? 'public',
   snmp_oid:       data.snmp_oid       ?? '1.3.6.1.2.1.1.1.0',
   snmp_port:      data.snmp_port      ?? 161,
+  check_interval_seconds: data.check_interval_seconds ?? 60,
 })
 export const deleteDevice = (id)   => api.delete(`/devices/${id}`)
 export const updateDevice = (id, data) => api.patch(`/devices/${id}`, data)

@@ -27,7 +27,8 @@ db.exec(`
     snmp_oid       TEXT     DEFAULT '1.3.6.1.2.1.1.1.0',
     snmp_port      INTEGER  DEFAULT 161,
     sla_target     REAL     DEFAULT 99.0,
-    criticality    TEXT     DEFAULT 'medium'
+    criticality    TEXT     DEFAULT 'medium',
+    check_interval_seconds INTEGER DEFAULT 60
   );
 
   CREATE TABLE IF NOT EXISTS metrics (
@@ -62,7 +63,11 @@ if (!hasColumn(db, 'devices', 'snmp_port'))
 if (!hasColumn(db, 'devices', 'sla_target'))
   db.exec('ALTER TABLE devices ADD COLUMN sla_target REAL DEFAULT 99.0');
 if (!hasColumn(db, 'devices', 'criticality'))
-  db.exec("ALTER TABLE devices ADD COLUMN criticality TEXT DEFAULT 'medium'")
+  db.exec("ALTER TABLE devices ADD COLUMN criticality TEXT DEFAULT 'medium'");
+if (!hasColumn(db, 'devices', 'check_interval_seconds'))
+  db.exec('ALTER TABLE devices ADD COLUMN check_interval_seconds INTEGER DEFAULT 60');
+
+db.exec('UPDATE devices SET check_interval_seconds = 60 WHERE check_interval_seconds IS NULL OR check_interval_seconds < 1');
 
 // Seed admin user on startup if credentials are provided and user doesn't exist yet.
 const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;

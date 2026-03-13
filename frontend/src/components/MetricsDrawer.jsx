@@ -44,6 +44,8 @@ const CRITICALITY_STYLE   = {
   high:     'bg-orange-100 text-orange-700',
   critical: 'bg-red-100 text-red-700',
 }
+const MIN_CHECK_INTERVAL_SECONDS = 5
+const MAX_CHECK_INTERVAL_SECONDS = 3600
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -120,6 +122,9 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
   const [editing,    setEditing]    = useState(false)
   const [slaTarget,  setSlaTarget]  = useState(String(device.sla_target ?? 99.0))
   const [critVal,    setCritVal]    = useState(device.criticality ?? 'medium')
+  const [checkIntervalSeconds, setCheckIntervalSeconds] = useState(
+    String(device.check_interval_seconds ?? 60)
+  )
   const [saving,     setSaving]     = useState(false)
   const [saveError,  setSaveError]  = useState(null)
 
@@ -128,8 +133,9 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
     if (!editing) {
       setSlaTarget(String(device.sla_target ?? 99.0))
       setCritVal(device.criticality ?? 'medium')
+      setCheckIntervalSeconds(String(device.check_interval_seconds ?? 60))
     }
-  }, [device.sla_target, device.criticality, editing])
+  }, [device.sla_target, device.criticality, device.check_interval_seconds, editing])
 
   // Prevent body scroll while open
   useEffect(() => {
@@ -171,10 +177,23 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
       setSaveError('SLA deve ser um número entre 0 e 100.')
       return
     }
+    const intervalNum = Number(checkIntervalSeconds)
+    if (
+      !Number.isInteger(intervalNum) ||
+      intervalNum < MIN_CHECK_INTERVAL_SECONDS ||
+      intervalNum > MAX_CHECK_INTERVAL_SECONDS
+    ) {
+      setSaveError(`Intervalo deve ser um inteiro entre ${MIN_CHECK_INTERVAL_SECONDS} e ${MAX_CHECK_INTERVAL_SECONDS} segundos.`)
+      return
+    }
     setSaving(true)
     setSaveError(null)
     try {
-      await onUpdate(device.id, { sla_target: num, criticality: critVal })
+      await onUpdate(device.id, {
+        sla_target: num,
+        criticality: critVal,
+        check_interval_seconds: intervalNum,
+      })
       setEditing(false)
     } catch (err) {
       setSaveError(err.response?.data?.error ?? err.message)
@@ -341,6 +360,12 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
                 <StatRow label="Port"        value={device.snmp_port} />
               </div>
             )}
+            <div className="mt-4 space-y-0">
+              <StatRow
+                label="Intervalo de verificação"
+                value={`${device.check_interval_seconds ?? 60}s`}
+              />
+            </div>
           </Card>
 
           {/* Card 2 — SLA & Criticidade */}
@@ -390,6 +415,15 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
                       type="number" min="0" max="100" step="0.1"
                       value={slaTarget}
                       onChange={(e) => setSlaTarget(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Intervalo de verificação (s)</label>
+                    <input
+                      type="number" min={MIN_CHECK_INTERVAL_SECONDS} max={MAX_CHECK_INTERVAL_SECONDS} step="1"
+                      value={checkIntervalSeconds}
+                      onChange={(e) => setCheckIntervalSeconds(e.target.value)}
                       className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>

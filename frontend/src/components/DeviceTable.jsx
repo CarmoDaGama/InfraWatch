@@ -29,7 +29,7 @@ function formatLastChecked(timestamp) {
 function SkeletonRow() {
   return (
     <tr className="animate-pulse">
-      {[...Array(7)].map((_, i) => (
+      {[...Array(8)].map((_, i) => (
         <td key={i} className="px-6 py-4">
           <div className="h-4 bg-gray-200 rounded w-3/4" />
         </td>
@@ -48,7 +48,7 @@ export default function DeviceTable({ devices, onDelete, onViewHistory, loading 
         <table className="min-w-full divide-y divide-gray-100">
           <thead className="bg-gray-50">
             <tr>
-              {['Name', 'Type', 'Host / URL', 'Status', 'Response Time', 'Last Checked', 'Actions'].map((h) => (
+              {['Name', 'Type', 'Host / URL', 'Status', 'Response Time', 'Interval', 'Last Checked', 'Actions'].map((h) => (
                 <th
                   key={h}
                   className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
@@ -67,7 +67,7 @@ export default function DeviceTable({ devices, onDelete, onViewHistory, loading 
               </>
             ) : devices.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-gray-400 text-sm">
+                <td colSpan={8} className="px-6 py-12 text-center text-gray-400 text-sm">
                   No devices monitored yet.
                 </td>
               </tr>
@@ -102,6 +102,9 @@ export default function DeviceTable({ devices, onDelete, onViewHistory, loading 
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
                     {device.responseTime != null ? `${device.responseTime} ms` : '—'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
+                    {Number.isInteger(device.check_interval_seconds) ? `${device.check_interval_seconds}s` : '60s'}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
                     {formatLastChecked(device.lastChecked)}
