@@ -8,11 +8,15 @@ function buildApp() {
   db.pragma('foreign_keys = ON');
   db.exec(`
     CREATE TABLE devices (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      name       TEXT    NOT NULL,
-      url        TEXT    NOT NULL UNIQUE,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      enabled    INTEGER  DEFAULT 1
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      name           TEXT    NOT NULL,
+      url            TEXT    NOT NULL UNIQUE,
+      created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+      enabled        INTEGER  DEFAULT 1,
+      type           TEXT     NOT NULL DEFAULT 'http',
+      snmp_community TEXT     DEFAULT 'public',
+      snmp_oid       TEXT     DEFAULT '1.3.6.1.2.1.1.1.0',
+      snmp_port      INTEGER  DEFAULT 161
     );
     CREATE TABLE metrics (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,5 +86,71 @@ describe('Devices API', () => {
     const { app } = buildApp();
     const res = await request(app).delete('/api/devices/9999');
     expect(res.status).toBe(404);
+  });
+
+  // ── Type-aware tests ────────────────────────────────────────────────────────
+
+  test('POST defaults type to http when type is omitted', async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .post('/api/devices')
+      .send({ name: 'Legacy', url: 'https://legacy.example.com' });
+    expect(res.status).toBe(201);
+    expect(res.body.type).toBe('http');
+  });
+
+  test('POST creates a ping device', async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .post('/api/devices')
+      .send({ name: 'Router', url: '192.168.1.1', type: 'ping' });
+    expect(res.status).toBe(201);
+    expect(res.body.type).toBe('ping');
+    expect(res.body.url).toBe('192.168.1.1');
+  });
+
+  test('POST creates an snmp device with custom fields', async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .post('/api/devices')
+      .send({
+        name: 'Switch',
+        url: '10.0.0.1',
+        type: 'snmp',
+        snmp_community: 'private',
+        snmp_oid: '1.3.6.1.2.1.2.2.1.10.1',
+        snmp_port: 1161,
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.type).toBe('snmp');
+    expect(res.body.snmp_community).toBe('private');
+    expect(res.body.snmp_port).toBe(1161);
+  });
+
+  test('POST returns 400 for invalid type', async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .post('/api/devices')
+      .send({ name: 'Bad', url: '192.168.1.1', type: 'ftp' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/type must be one of/);
+  });
+
+  test('POST returns 400 when http device has non-http url', async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .post('/api/devices')
+      .send({ name: 'Bad HTTP', url: '192.168.1.1', type: 'http' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/http/);
+  });
+
+  test('POST returns 400 when snmp_port is out of range', async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .post('/api/devices')
+      .send({ name: 'BadPort', url: '10.0.0.1', type: 'snmp', snmp_port: 99999 });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/snmp_port/);
   });
 });

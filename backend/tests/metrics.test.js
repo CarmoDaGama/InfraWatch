@@ -8,11 +8,15 @@ function buildApp() {
   db.pragma('foreign_keys = ON');
   db.exec(`
     CREATE TABLE devices (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      name       TEXT    NOT NULL,
-      url        TEXT    NOT NULL UNIQUE,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      enabled    INTEGER  DEFAULT 1
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      name           TEXT    NOT NULL,
+      url            TEXT    NOT NULL UNIQUE,
+      created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+      enabled        INTEGER  DEFAULT 1,
+      type           TEXT     NOT NULL DEFAULT 'http',
+      snmp_community TEXT     DEFAULT 'public',
+      snmp_oid       TEXT     DEFAULT '1.3.6.1.2.1.1.1.0',
+      snmp_port      INTEGER  DEFAULT 161
     );
     CREATE TABLE metrics (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,

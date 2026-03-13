@@ -1,5 +1,7 @@
 import { Router } from 'express';
 
+const VALID_TYPES = ['http', 'ping', 'snmp'];
+
 export default function devicesRouter(db) {
   const router = Router();
 
@@ -28,21 +30,53 @@ export default function devicesRouter(db) {
   });
 
   router.post('/', (req, res) => {
-    const { name, url } = req.body ?? {};
-    if (!name || !url) {
-      return res.status(400).json({ error: 'name and url are required' });
+    const {
+      name,
+      url,
+      type = 'http',
+      snmp_community = 'public',
+      snmp_oid = '1.3.6.1.2.1.1.1.0',
+      snmp_port = 161,
+    } = req.body ?? {};
+
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: 'name is required' });
     }
+    if (!url || !String(url).trim()) {
+      return res.status(400).json({ error: 'url is required' });
+    }
+    if (!VALID_TYPES.includes(type)) {
+      return res.status(400).json({ error: `type must be one of: ${VALID_TYPES.join(', ')}` });
+    }
+    if (type === 'http' && !/^https?:\/\/.+/.test(String(url).trim())) {
+      return res.status(400).json({ error: 'url must start with http:// or https:// for HTTP devices' });
+    }
+    const portNum = parseInt(snmp_port, 10);
+    if (type === 'snmp' && (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535)) {
+      return res.status(400).json({ error: 'snmp_port must be an integer between 1 and 65535' });
+    }
+
     try {
       const result = db
-        .prepare('INSERT INTO devices (name, url) VALUES (?, ?)')
-        .run(name, url);
+        .prepare(
+          `INSERT INTO devices (name, url, type, snmp_community, snmp_oid, snmp_port)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          String(name).trim(),
+          String(url).trim(),
+          type,
+          String(snmp_community),
+          String(snmp_oid),
+          type === 'snmp' ? portNum : 161
+        );
       const device = db
         .prepare('SELECT * FROM devices WHERE id = ?')
         .get(result.lastInsertRowid);
       res.status(201).json(device);
     } catch (err) {
       if (err.message.includes('UNIQUE')) {
-        return res.status(409).json({ error: 'A device with that URL already exists' });
+        return res.status(409).json({ error: 'A device with that URL/host already exists' });
       }
       res.status(500).json({ error: err.message });
     }

@@ -17,11 +17,15 @@ db.pragma('foreign_keys = ON');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS devices (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    name       TEXT    NOT NULL,
-    url        TEXT    NOT NULL UNIQUE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    enabled    INTEGER  DEFAULT 1
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    name           TEXT    NOT NULL,
+    url            TEXT    NOT NULL UNIQUE,
+    created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    enabled        INTEGER  DEFAULT 1,
+    type           TEXT     NOT NULL DEFAULT 'http',
+    snmp_community TEXT     DEFAULT 'public',
+    snmp_oid       TEXT     DEFAULT '1.3.6.1.2.1.1.1.0',
+    snmp_port      INTEGER  DEFAULT 161
   );
 
   CREATE TABLE IF NOT EXISTS metrics (
@@ -39,6 +43,20 @@ db.exec(`
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+// Idempotent schema migrations for existing databases.
+// ALTER TABLE fails if the column already exists, so we check PRAGMA table_info first.
+function hasColumn(db, table, col) {
+  return db.pragma(`table_info(${table})`).some((c) => c.name === col);
+}
+if (!hasColumn(db, 'devices', 'type'))
+  db.exec("ALTER TABLE devices ADD COLUMN type TEXT NOT NULL DEFAULT 'http'");
+if (!hasColumn(db, 'devices', 'snmp_community'))
+  db.exec("ALTER TABLE devices ADD COLUMN snmp_community TEXT DEFAULT 'public'");
+if (!hasColumn(db, 'devices', 'snmp_oid'))
+  db.exec("ALTER TABLE devices ADD COLUMN snmp_oid TEXT DEFAULT '1.3.6.1.2.1.1.1.0'");
+if (!hasColumn(db, 'devices', 'snmp_port'))
+  db.exec('ALTER TABLE devices ADD COLUMN snmp_port INTEGER DEFAULT 161');
 
 // Seed admin user on startup if credentials are provided and user doesn't exist yet.
 const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
