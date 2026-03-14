@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import Header from './components/Header.jsx'
 import DeviceTable from './components/DeviceTable.jsx'
 import AddDeviceForm from './components/AddDeviceForm.jsx'
@@ -20,6 +21,7 @@ function StatCard({ label, value, color }) {
 }
 
 export default function App() {
+  const { t } = useTranslation()
   // Lazy initialiser reads localStorage once on mount — no flicker on refresh.
   const [token, setToken] = useState(() => localStorage.getItem('token'))
   const [devices, setDevices] = useState([])
@@ -74,13 +76,13 @@ export default function App() {
       if (err.response?.status === 401) return // interceptor already fired auth:logout
       setError(
         err.code === 'ERR_NETWORK'
-          ? 'Cannot reach the InfraWatch API. Make sure the backend is running on port 3001.'
-          : `API error: ${err.message}`
+          ? t('app.networkError')
+          : t('app.apiError', { message: err.message })
       )
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }, [token, t])
 
   useEffect(() => {
     if (!token) return
@@ -94,7 +96,7 @@ export default function App() {
       await deleteDevice(id)
       await fetchData()
     } catch (err) {
-      setError(`Failed to delete device: ${err.message}`)
+      setError(t('app.deleteError', { message: err.message }))
     }
   }
 
@@ -126,15 +128,15 @@ export default function App() {
           <div className="flex justify-center items-center py-24">
             <div className="flex flex-col items-center gap-3 text-gray-400">
               <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm">Loading devices…</span>
+              <span className="text-sm">{t('app.loading')}</span>
             </div>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-3 gap-4">
-              <StatCard label="Total Devices" value={devices.length} color="text-gray-800" />
-              <StatCard label="Up" value={upCount} color="text-green-600" />
-              <StatCard label="Down" value={downCount} color="text-red-600" />
+              <StatCard label={t('app.totalDevices')} value={devices.length} color="text-gray-800" />
+              <StatCard label={t('app.up')} value={upCount} color="text-green-600" />
+              <StatCard label={t('app.down')} value={downCount} color="text-red-600" />
             </div>
 
             <AddDeviceForm onAdd={fetchData} />

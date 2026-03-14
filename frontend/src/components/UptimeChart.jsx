@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,9 +13,9 @@ import { Bar } from 'react-chartjs-2'
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 function barColor(stat) {
-  if (stat.uptime_pct === null) return 'rgba(156, 163, 175, 0.6)' // gray — no data
-  if (stat.sla_met === true)   return 'rgba(34, 197, 94, 0.75)'   // green — SLA met
-  return 'rgba(239, 68, 68, 0.75)'                                 // red   — SLA breached
+  if (stat.uptime_pct === null) return 'rgba(156, 163, 175, 0.6)'
+  if (stat.sla_met === true)   return 'rgba(34, 197, 94, 0.75)'
+  return 'rgba(239, 68, 68, 0.75)'
 }
 
 function barBorder(stat) {
@@ -24,12 +25,14 @@ function barBorder(stat) {
 }
 
 export default function UptimeChart({ uptimeStats }) {
+  const { t } = useTranslation()
+
   if (!uptimeStats || uptimeStats.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">Uptime últimas 24 h</h2>
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('uptime.title')}</h2>
         <div className="flex items-center justify-center h-48 text-gray-400 text-sm">
-          No data available
+          {t('uptime.noData')}
         </div>
       </div>
     )
@@ -39,7 +42,7 @@ export default function UptimeChart({ uptimeStats }) {
     labels: uptimeStats.map((s) => s.name),
     datasets: [
       {
-        label: 'Uptime %',
+        label: t('uptime.uptimeLabel'),
         data: uptimeStats.map((s) => s.uptime_pct ?? 0),
         backgroundColor: uptimeStats.map(barColor),
         borderColor: uptimeStats.map(barBorder),
@@ -58,9 +61,13 @@ export default function UptimeChart({ uptimeStats }) {
           label: (ctx) => {
             const stat = uptimeStats[ctx.dataIndex]
             const uptime = stat.uptime_pct !== null ? `${stat.uptime_pct.toFixed(1)}%` : 'N/A'
-            const target = `Target: ${stat.sla_target ?? 99.0}%`
-            const status = stat.sla_met === null ? 'Sem dados' : stat.sla_met ? '✓ SLA OK' : '✗ SLA violado'
-            return [`Uptime: ${uptime}`, target, status]
+            const target = `${t('uptime.tooltipTarget')}: ${stat.sla_target ?? 99.0}%`
+            const status = stat.sla_met === null
+              ? t('uptime.noDataLegend')
+              : stat.sla_met
+                ? `✓ ${t('uptime.slaOk')}`
+                : `✗ ${t('uptime.slaViolated')}`
+            return [`${t('uptime.tooltipUptime')}: ${uptime}`, target, status]
           },
         },
       },
@@ -79,16 +86,16 @@ export default function UptimeChart({ uptimeStats }) {
   return (
     <div className="bg-white rounded-xl shadow p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-800">Uptime últimas 24 h</h2>
+        <h2 className="text-lg font-semibold text-gray-800">{t('uptime.title')}</h2>
         <div className="flex items-center gap-4 text-xs text-gray-500">
           <span className="flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded-sm bg-green-400" /> SLA OK
+            <span className="inline-block w-3 h-3 rounded-sm bg-green-400" /> {t('uptime.slaOk')}
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded-sm bg-red-400" /> SLA violado
+            <span className="inline-block w-3 h-3 rounded-sm bg-red-400" /> {t('uptime.slaViolated')}
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded-sm bg-gray-400" /> Sem dados
+            <span className="inline-block w-3 h-3 rounded-sm bg-gray-400" /> {t('uptime.noDataLegend')}
           </span>
         </div>
       </div>

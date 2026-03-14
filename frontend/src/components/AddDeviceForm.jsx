@@ -1,15 +1,11 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createDevice } from '../api.js'
-
-const TYPE_OPTIONS = [
-  { value: 'http', label: 'HTTP' },
-  { value: 'ping', label: 'ICMP Ping' },
-  { value: 'snmp', label: 'SNMPv2c' },
-]
 
 const INPUT_CLASS = 'w-full rounded-lg border px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
 
 export default function AddDeviceForm({ onAdd }) {
+  const { t } = useTranslation()
   const [name,          setName]          = useState('')
   const [url,           setUrl]           = useState('')
   const [type,          setType]          = useState('http')
@@ -20,22 +16,28 @@ export default function AddDeviceForm({ onAdd }) {
   const [errors,        setErrors]        = useState({})
   const [submitting,    setSubmitting]    = useState(false)
 
+  const TYPE_OPTIONS = [
+    { value: 'http', label: t('addDevice.typeHttp') },
+    { value: 'ping', label: t('addDevice.typePing') },
+    { value: 'snmp', label: t('addDevice.typeSnmp') },
+  ]
+
   function validate() {
     const errs = {}
-    if (!name.trim()) errs.name = 'Device name is required.'
+    if (!name.trim()) errs.name = t('addDevice.nameRequired')
     const trimmedUrl = url.trim()
     if (!trimmedUrl) {
-      errs.url = `${type === 'http' ? 'URL' : 'Host / IP'} is required.`
+      errs.url = type === 'http' ? t('addDevice.urlRequired') : t('addDevice.hostRequired')
     } else if (type === 'http' && !/^https?:\/\/.+/.test(trimmedUrl)) {
-      errs.url = 'Enter a valid URL starting with http:// or https://'
+      errs.url = t('addDevice.urlInvalid')
     }
     if (type === 'snmp') {
       const p = parseInt(snmpPort, 10)
-      if (isNaN(p) || p < 1 || p > 65535) errs.snmpPort = 'Port must be 1–65535.'
+      if (isNaN(p) || p < 1 || p > 65535) errs.snmpPort = t('addDevice.portInvalid')
     }
     const intervalNum = Number(checkIntervalSeconds)
     if (!Number.isInteger(intervalNum) || intervalNum < 5 || intervalNum > 3600) {
-      errs.checkInterval = 'Interval must be an integer between 5 and 3600 seconds.'
+      errs.checkInterval = t('addDevice.intervalInvalid')
     }
     return errs
   }
@@ -67,27 +69,24 @@ export default function AddDeviceForm({ onAdd }) {
       onAdd()
     } catch (err) {
       const msg = err.response?.data?.error || err.response?.data?.message
-      setErrors({ submit: msg || 'Failed to add device. Please try again.' })
+      setErrors({ submit: msg || t('addDevice.error') })
     } finally {
       setSubmitting(false)
     }
   }
 
-  const urlLabel       = type === 'http' ? 'URL'               : 'Host / IP'
-  const urlPlaceholder = type === 'http' ? 'https://example.com' : '192.168.1.1'
+  const urlLabel       = type === 'http' ? t('addDevice.urlLabel')       : t('addDevice.hostLabel')
+  const urlPlaceholder = type === 'http' ? t('addDevice.urlPlaceholder') : t('addDevice.hostPlaceholder')
 
   return (
     <div className="bg-white rounded-xl shadow p-6">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">Add New Device</h2>
+      <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('addDevice.title')}</h2>
       <form onSubmit={handleSubmit} noValidate>
 
-        {/* Row 1: Type + Name + URL/Host */}
         <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
-
-          {/* Type selector */}
           <div className="w-full sm:w-36">
             <label htmlFor="device-type" className="block text-sm font-medium text-gray-700 mb-1">
-              Type
+              {t('addDevice.type')}
             </label>
             <select
               id="device-type"
@@ -101,15 +100,14 @@ export default function AddDeviceForm({ onAdd }) {
             </select>
           </div>
 
-          {/* Name */}
           <div className="flex-1 min-w-0">
             <label htmlFor="device-name" className="block text-sm font-medium text-gray-700 mb-1">
-              Device Name
+              {t('addDevice.name')}
             </label>
             <input
               id="device-name"
               type="text"
-              placeholder="e.g. Production API"
+              placeholder={t('addDevice.namePlaceholder')}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className={`${INPUT_CLASS} ${errors.name ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
@@ -117,7 +115,6 @@ export default function AddDeviceForm({ onAdd }) {
             {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
           </div>
 
-          {/* URL or Host/IP */}
           <div className="flex-1 min-w-0">
             <label htmlFor="device-url" className="block text-sm font-medium text-gray-700 mb-1">
               {urlLabel}
@@ -134,12 +131,11 @@ export default function AddDeviceForm({ onAdd }) {
           </div>
         </div>
 
-        {/* Row 2: SNMP fields (only shown for snmp type) */}
         {type === 'snmp' && (
           <div className="flex flex-col sm:flex-row gap-4 mt-4">
             <div className="flex-1 min-w-0">
               <label htmlFor="snmp-community" className="block text-sm font-medium text-gray-700 mb-1">
-                Community String
+                {t('addDevice.community')}
               </label>
               <input
                 id="snmp-community"
@@ -151,7 +147,7 @@ export default function AddDeviceForm({ onAdd }) {
             </div>
             <div className="flex-1 min-w-0">
               <label htmlFor="snmp-oid" className="block text-sm font-medium text-gray-700 mb-1">
-                OID
+                {t('addDevice.oid')}
               </label>
               <input
                 id="snmp-oid"
@@ -163,7 +159,7 @@ export default function AddDeviceForm({ onAdd }) {
             </div>
             <div className="w-full sm:w-28">
               <label htmlFor="snmp-port" className="block text-sm font-medium text-gray-700 mb-1">
-                Port
+                {t('addDevice.port')}
               </label>
               <input
                 id="snmp-port"
@@ -181,7 +177,7 @@ export default function AddDeviceForm({ onAdd }) {
 
         <div className="w-full sm:w-56 mt-4">
           <label htmlFor="check-interval" className="block text-sm font-medium text-gray-700 mb-1">
-            Check Interval (seconds)
+            {t('addDevice.interval')}
           </label>
           <input
             id="check-interval"
@@ -191,19 +187,17 @@ export default function AddDeviceForm({ onAdd }) {
             step="1"
             value={checkIntervalSeconds}
             onChange={(e) => setCheckIntervalSeconds(e.target.value)}
-            className={`${INPUT_CLASS} ${errors.checkInterval ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-          />
+            className={`${INPUT_CLASS} ${errors.checkInterval ? 
+'border-red-400 bg-red-50' : 'border-gray-300'}`} />
           {errors.checkInterval && <p className="mt-1 text-xs text-red-600">{errors.checkInterval}</p>}
         </div>
-
-        {/* Submit row */}
         <div className="mt-4 flex items-center gap-4">
           <button
             type="submit"
             disabled={submitting}
             className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-semibold shadow transition-colors"
           >
-            {submitting ? 'Adding…' : 'Add Device'}
+            {submitting ? t('addDevice.adding') : t('addDevice.add')}
           </button>
           {errors.submit && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -211,7 +205,6 @@ export default function AddDeviceForm({ onAdd }) {
             </p>
           )}
         </div>
-
       </form>
     </div>
   )

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import StatusBadge from './StatusBadge.jsx'
 
 const TYPE_BADGE = {
@@ -17,15 +18,6 @@ function TypeBadge({ type }) {
   )
 }
 
-function formatLastChecked(timestamp) {
-  if (!timestamp) return '—'
-  const diff = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000)
-  if (diff < 5) return 'just now'
-  if (diff < 60) return `${diff}s ago`
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-  return new Date(timestamp).toLocaleTimeString()
-}
-
 function SkeletonRow() {
   return (
     <tr className="animate-pulse">
@@ -39,16 +31,38 @@ function SkeletonRow() {
 }
 
 export default function DeviceTable({ devices, onDelete, onViewHistory, loading }) {
+  const { t } = useTranslation()
+
+  function formatLastChecked(timestamp) {
+    if (!timestamp) return '—'
+    const diff = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000)
+    if (diff < 5) return t('deviceTable.justNow')
+    if (diff < 60) return t('deviceTable.secondsAgo', { diff })
+    if (diff < 3600) return t('deviceTable.minutesAgo', { diff: Math.floor(diff / 60) })
+    return new Date(timestamp).toLocaleTimeString()
+  }
+
+  const headers = [
+    t('deviceTable.name'),
+    t('deviceTable.type'),
+    t('deviceTable.host'),
+    t('deviceTable.status'),
+    t('deviceTable.responseTime'),
+    t('deviceTable.interval'),
+    t('deviceTable.lastChecked'),
+    t('deviceTable.actions'),
+  ]
+
   return (
     <div className="bg-white rounded-xl shadow overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100">
-        <h2 className="text-lg font-semibold text-gray-800">Monitored Devices</h2>
+        <h2 className="text-lg font-semibold text-gray-800">{t('deviceTable.title')}</h2>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-100">
           <thead className="bg-gray-50">
             <tr>
-              {['Name', 'Type', 'Host / URL', 'Status', 'Response Time', 'Interval', 'Last Checked', 'Actions'].map((h) => (
+              {headers.map((h) => (
                 <th
                   key={h}
                   className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
@@ -68,7 +82,7 @@ export default function DeviceTable({ devices, onDelete, onViewHistory, loading 
             ) : devices.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-6 py-12 text-center text-gray-400 text-sm">
-                  No devices monitored yet.
+                  {t('deviceTable.empty')}
                 </td>
               </tr>
             ) : (
@@ -114,16 +128,16 @@ export default function DeviceTable({ devices, onDelete, onViewHistory, loading 
                       <button
                         onClick={() => onViewHistory(device)}
                         className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded px-2 py-1 text-sm font-medium transition-colors"
-                        title="Ver histórico de métricas"
+                        title={t('deviceTable.viewHistory')}
                       >
-                        Histórico
+                        {t('deviceTable.history')}
                       </button>
                       <button
                         onClick={() => onDelete(device.id)}
                         className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-sm font-medium transition-colors"
-                        title="Delete device"
+                        title={t('deviceTable.deleteDevice')}
                       >
-                        ✕ Remover
+                        {t('deviceTable.remove')}
                       </button>
                     </div>
                   </td>

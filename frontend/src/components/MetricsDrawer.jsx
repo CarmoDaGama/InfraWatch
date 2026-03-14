@@ -5,6 +5,7 @@
  * File kept as MetricsDrawer.jsx for backwards compatibility; default export is DeviceDetail.
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -37,7 +38,7 @@ const TYPE_STYLE = {
 }
 
 const CRITICALITY_OPTIONS = ['low', 'medium', 'high', 'critical']
-const CRITICALITY_LABEL   = { low: 'Baixa', medium: 'Média', high: 'Alta', critical: 'Crítica' }
+const CRITICALITY_KEY     = { low: 'sla.critLow', medium: 'sla.critMedium', high: 'sla.critHigh', critical: 'sla.critCritical' }
 const CRITICALITY_STYLE   = {
   low:      'bg-gray-100 text-gray-600',
   medium:   'bg-yellow-100 text-yellow-700',
@@ -60,14 +61,7 @@ function formatBucket(ts, hours) {
   )
 }
 
-function formatAge(ts) {
-  if (!ts) return '—'
-  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000)
-  if (diff < 5)    return 'agora mesmo'
-  if (diff < 60)   return `há ${diff}s`
-  if (diff < 3600) return `há ${Math.floor(diff / 60)}m`
-  return new Date(ts).toLocaleTimeString()
-}
+
 
 function rt(val) {
   return val != null ? `${Math.round(val)} ms` : '—'
@@ -94,16 +88,17 @@ function StatRow({ label, value, valueClass = 'text-gray-800' }) {
 }
 
 function SlaStatusBadge({ sla_met }) {
+  const { t } = useTranslation()
   if (sla_met === null || sla_met === undefined) {
-    return <span className="text-xs text-gray-400">Sem dados</span>
+    return <span className="text-xs text-gray-400">{t('sla.noData')}</span>
   }
   return sla_met ? (
     <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-      ✓ SLA cumprido
+      {t('detail.slaMet')}
     </span>
   ) : (
     <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
-      ✗ SLA violado
+      {t('detail.slaViolated')}
     </span>
   )
 }
@@ -127,6 +122,17 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
   )
   const [saving,     setSaving]     = useState(false)
   const [saveError,  setSaveError]  = useState(null)
+
+  const { t } = useTranslation()
+
+  function formatAge(ts) {
+    if (!ts) return '—'
+    const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000)
+    if (diff < 5)    return t('deviceTable.justNow')
+    if (diff < 60)   return t('deviceTable.secondsAgo', { diff })
+    if (diff < 3600) return t('deviceTable.minutesAgo', { diff: Math.floor(diff / 60) })
+    return new Date(ts).toLocaleTimeString()
+  }
 
   // Sync SLA fields when parent updates device (live refresh)
   useEffect(() => {
@@ -174,7 +180,7 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
   async function handleSaveSla() {
     const num = parseFloat(slaTarget)
     if (isNaN(num) || num < 0 || num > 100) {
-      setSaveError('SLA deve ser um número entre 0 e 100.')
+      setSaveError(t('detail.slaValidation'))
       return
     }
     const intervalNum = Number(checkIntervalSeconds)
@@ -183,7 +189,7 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
       intervalNum < MIN_CHECK_INTERVAL_SECONDS ||
       intervalNum > MAX_CHECK_INTERVAL_SECONDS
     ) {
-      setSaveError(`Intervalo deve ser um inteiro entre ${MIN_CHECK_INTERVAL_SECONDS} e ${MAX_CHECK_INTERVAL_SECONDS} segundos.`)
+      setSaveError(t('detail.intervalValidation', { min: MIN_CHECK_INTERVAL_SECONDS, max: MAX_CHECK_INTERVAL_SECONDS }))
       return
     }
     setSaving(true)
@@ -287,7 +293,7 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
             <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd"/>
             </svg>
-            Voltar
+            {t('detail.back')}
           </button>
 
           {/* Device title block */}
@@ -302,7 +308,7 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
             <div className="flex items-center gap-4 mt-0.5 text-xs text-gray-400 flex-wrap">
               <span className="font-mono truncate">{device.url}</span>
               {device.lastChecked && (
-                <span>Último check: {formatAge(device.lastChecked)}</span>
+                <span>{t('detail.lastCheck')}: {formatAge(device.lastChecked)}</span>
               )}
               {device.responseTime != null && (
                 <span>{device.responseTime} ms</span>
@@ -326,7 +332,8 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
           {/* Card 1 — Status atual */}
-          <Card title="Estado atual">
+          {/* Card 1 — Status */}
+          <Card title={t('detail.currentState')}>
             <div className="flex items-center gap-4">
               {/* Big status circle */}
               <span className={`shrink-0 w-14 h-14 rounded-full flex items-center justify-center text-2xl ${
@@ -341,16 +348,16 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
                   device.status === 'up' ? 'text-green-700' :
                   device.status === 'down' ? 'text-red-700' : 'text-gray-500'
                 }`}>
-                  {device.status === 'up' ? 'Operacional' : device.status === 'down' ? 'Offline' : 'Desconhecido'}
+                  {device.status === 'up' ? t('detail.operational') : device.status === 'down' ? t('detail.offline') : t('detail.unknown')}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {device.lastChecked ? formatAge(device.lastChecked) : 'Nunca verificado'}
+                  {device.lastChecked ? formatAge(device.lastChecked) : t('detail.neverChecked')}
                 </p>
               </div>
             </div>
             {device.type === 'http' || device.type === 'ping' ? (
               <div className="mt-4 space-y-0">
-                <StatRow label="Tempo de resposta" value={device.responseTime != null ? `${device.responseTime} ms` : '—'} />
+                <StatRow label={t('detail.responseTime')} value={device.responseTime != null ? `${device.responseTime} ms` : '—'} />
               </div>
             ) : null}
             {device.type === 'snmp' && (
@@ -362,27 +369,27 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
             )}
             <div className="mt-4 space-y-0">
               <StatRow
-                label="Intervalo de verificação"
+                label={t('detail.checkInterval')}
                 value={`${device.check_interval_seconds ?? 60}s`}
               />
             </div>
           </Card>
 
           {/* Card 2 — SLA & Criticidade */}
-          <Card title="SLA & Criticidade">
+          <Card title={t('detail.slaTitle')}>
             {!editing ? (
               <>
                 <div className="space-y-0 mb-4">
                   <StatRow
-                    label="Criticidade"
+                    label={t('detail.criticality')}
                     value={
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${CRITICALITY_STYLE[device.criticality] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {CRITICALITY_LABEL[device.criticality] ?? device.criticality}
+                        {t(CRITICALITY_KEY[device.criticality]) ?? device.criticality}
                       </span>
                     }
                   />
-                  <StatRow label="Target SLA"   value={`${device.sla_target ?? 99.0}%`} />
-                  <StatRow label="Uptime real"  value={uptime_pct !== null ? `${uptime_pct}%` : '—'} />
+                  <StatRow label={t('detail.targetSla')}   value={`${device.sla_target ?? 99.0}%`} />
+                  <StatRow label={t('detail.realUptime')}  value={uptime_pct !== null ? `${uptime_pct}%` : '—'} />
                 </div>
                 <div className="flex items-center justify-between">
                   <SlaStatusBadge sla_met={sla_met} />
@@ -390,7 +397,7 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
                     onClick={() => { setEditing(true); setSaveError(null) }}
                     className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                   >
-                    Editar SLA
+                    {t('detail.editSla')}
                   </button>
                 </div>
               </>
@@ -398,19 +405,19 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
               <>
                 <div className="space-y-3 mb-3">
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Criticidade</label>
+                    <label className="block text-xs text-gray-500 mb-1">{t('detail.criticality')}</label>
                     <select
                       value={critVal}
                       onChange={(e) => setCritVal(e.target.value)}
                       className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       {CRITICALITY_OPTIONS.map((o) => (
-                        <option key={o} value={o}>{CRITICALITY_LABEL[o]}</option>
+                        <option key={o} value={o}>{t(CRITICALITY_KEY[o])}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Target SLA (%)</label>
+                    <label className="block text-xs text-gray-500 mb-1">{t('detail.targetSla')} (%)</label>
                     <input
                       type="number" min="0" max="100" step="0.1"
                       value={slaTarget}
@@ -419,7 +426,7 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Intervalo de verificação (s)</label>
+                    <label className="block text-xs text-gray-500 mb-1">{t('detail.checkInterval')} (s)</label>
                     <input
                       type="number" min={MIN_CHECK_INTERVAL_SECONDS} max={MAX_CHECK_INTERVAL_SECONDS} step="1"
                       value={checkIntervalSeconds}
@@ -435,14 +442,14 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
                     disabled={saving}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
                   >
-                    {saving ? 'A guardar…' : 'Guardar'}
+                    {saving ? t('detail.saving') : t('detail.save')}
                   </button>
                   <button
                     onClick={() => { setEditing(false); setSaveError(null) }}
                     disabled={saving}
                     className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
                   >
-                    Cancelar
+                    {t('detail.cancel')}
                   </button>
                 </div>
               </>
@@ -450,7 +457,7 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
           </Card>
 
           {/* Card 3 — Estatísticas do período */}
-          <Card title={`Estatísticas · ${WINDOWS.find(w => w.hours === hours)?.label ?? `${hours}h`}`}>
+          <Card title={t('detail.stats', { window: WINDOWS.find(w => w.hours === hours)?.label ?? `${hours}h` })}>
             {loading && !data ? (
               <div className="space-y-2">
                 {[...Array(6)].map((_, i) => (
@@ -459,12 +466,12 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
               </div>
             ) : (
               <div className="space-y-0">
-                <StatRow label="Total checks"    value={stats.total}     />
-                <StatRow label="Up"              value={stats.up_count}  valueClass="text-green-700 font-semibold" />
-                <StatRow label="Down"            value={stats.down_count} valueClass={stats.down_count > 0 ? 'text-red-700 font-semibold' : 'text-gray-800'} />
-                <StatRow label="Uptime"          value={uptime_pct !== null ? `${uptime_pct}%` : '—'} />
-                <StatRow label="Média resp."     value={rt(stats.avg_rt)} />
-                <StatRow label="Mín / Máx resp." value={`${rt(stats.min_rt)} / ${rt(stats.max_rt)}`} />
+                <StatRow label={t('detail.totalChecks')}    value={stats.total}     />
+                <StatRow label={t('detail.up')}              value={stats.up_count}  valueClass="text-green-700 font-semibold" />
+                <StatRow label={t('detail.down')}            value={stats.down_count} valueClass={stats.down_count > 0 ? 'text-red-700 font-semibold' : 'text-gray-800'} />
+                <StatRow label={t('detail.uptime')}          value={uptime_pct !== null ? `${uptime_pct}%` : '—'} />
+                <StatRow label={t('detail.avgResp')}     value={rt(stats.avg_rt)} />
+                <StatRow label={t('detail.minMaxResp')} value={`${rt(stats.min_rt)} / ${rt(stats.max_rt)}`} />
               </div>
             )}
           </Card>
@@ -475,7 +482,7 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
         <Card>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-              Histórico de resposta
+              {t('detail.responseHistory')}
             </h3>
             <div className="flex items-center gap-1 flex-wrap">
               {WINDOWS.map((w) => (
@@ -510,7 +517,7 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
             <Line data={chartData} options={chartOptions} />
           ) : !loading ? (
             <div className="flex items-center justify-center h-40 text-gray-400 text-sm">
-              Sem dados para esta janela temporal.
+              {t('detail.noData')}
             </div>
           ) : (
             <div className="flex items-center justify-center h-40">
@@ -521,7 +528,7 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
 
         {/* ── downtime events ──────────────────────────────────────────── */}
         {!loading && metrics.some((m) => m.status === 'down') && (
-          <Card title="Ocorrências de downtime">
+          <Card title={t('detail.downtimes')}>
             <div className="space-y-1.5 max-h-60 overflow-y-auto">
               {metrics
                 .filter((m) => m.status === 'down')
@@ -533,7 +540,7 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
                     <span className="font-mono text-xs text-gray-600">{formatBucket(m.bucket, hours)}</span>
                     {m.check_count > 1 && (
                       <span className="text-xs text-gray-400 ml-auto">
-                        {m.check_count} checks em down
+                        {t('detail.checksDown', { count: m.check_count })}
                       </span>
                     )}
                   </div>
