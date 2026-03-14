@@ -8,7 +8,7 @@ import devicesRouter from './routes/devices.js';
 import metricsRouter from './routes/metrics.js';
 import { verifyToken } from './middleware/auth.js';
 import { startMonitoring } from './monitor.js';
-import { sendNotification } from './notify.js';
+import { sendNotification, sendAlert } from './notify.js';
 
 const app = express();
 
@@ -39,6 +39,20 @@ if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`InfraWatch backend listening on port ${PORT}`);
     startMonitoring(db, sendNotification);
+  });
+
+  process.on('uncaughtException', (err) => {
+    sendAlert(
+      'InfraWatch: Erro Crítico no Servidor',
+      `Exceção não tratada: ${err.message}\n${err.stack ?? ''}\nTimestamp: ${new Date().toISOString()}`
+    ).finally(() => process.exit(1));
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    sendAlert(
+      'InfraWatch: Erro Assíncrono Não Tratado',
+      `Promise rejeitada sem tratamento: ${reason}\nTimestamp: ${new Date().toISOString()}`
+    );
   });
 }
 

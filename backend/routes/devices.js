@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { sendAlert } from '../notify.js';
 
 const VALID_TYPES        = ['http', 'ping', 'snmp'];
 const VALID_CRITICALITY  = ['low', 'medium', 'high', 'critical'];
@@ -104,6 +105,10 @@ export default function devicesRouter(db) {
       const device = db
         .prepare('SELECT * FROM devices WHERE id = ?')
         .get(result.lastInsertRowid);
+      sendAlert(
+        `InfraWatch: Device Adicionado - ${device.name}`,
+        `O device "${device.name}" (${device.url}) foi adicionado ao monitoramento em ${new Date().toISOString()}`
+      );
       res.status(201).json(device);
     } catch (err) {
       if (err.message.includes('UNIQUE')) {
@@ -161,6 +166,10 @@ export default function devicesRouter(db) {
         return res.status(404).json({ error: 'Device not found' });
       }
       const device = db.prepare('SELECT * FROM devices WHERE id = ?').get(req.params.id);
+      sendAlert(
+        `InfraWatch: Configuração Alterada - ${device.name}`,
+        `A configuração do device "${device.name}" (${device.url}) foi alterada em ${new Date().toISOString()}\nCampos alterados: ${updates.join(', ')}`
+      );
       res.json(device);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -169,11 +178,18 @@ export default function devicesRouter(db) {
 
   router.delete('/:id', (req, res) => {
     try {
+      const device = db.prepare('SELECT * FROM devices WHERE id = ?').get(req.params.id);
       const result = db
         .prepare('DELETE FROM devices WHERE id = ?')
         .run(req.params.id);
       if (result.changes === 0) {
         return res.status(404).json({ error: 'Device not found' });
+      }
+      if (device) {
+        sendAlert(
+          `InfraWatch: Device Removido - ${device.name}`,
+          `O device "${device.name}" (${device.url}) foi removido do monitoramento em ${new Date().toISOString()}`
+        );
       }
       res.json({ success: true });
     } catch (err) {

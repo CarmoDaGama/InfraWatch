@@ -10,7 +10,7 @@ Uma plataforma de monitoramento em tempo real de infraestruturas com dashboards 
 
 - 🟢 **Real-time monitoring** – polling interval configurable per device (RNF02)
 - 📊 **Dashboard** – live status table + 24-hour uptime bar chart
-- 🔔 **Alerts** – email (Nodemailer) and/or Telegram notifications on status change
+- 🔔 **Alerts** – email, Telegram, SMS (Twilio), and push (FCM/Webhook) on status change
 - ➕ **Device management** – add/remove devices via a web form
 - 🗃️ **Persistence** – SQLite stores device configurations and metric history
 
@@ -85,6 +85,19 @@ Copy `backend/.env.example` to `backend/.env` and adjust:
 | `TELEGRAM_ENABLED` | `false` | Enable Telegram alerts |
 | `TELEGRAM_BOT_TOKEN` | – | Bot token from @BotFather |
 | `TELEGRAM_CHAT_ID` | – | Target chat/user ID |
+| `SMS_ENABLED` | `false` | Enable SMS alerts |
+| `SMS_PROVIDER` | `twilio` | SMS provider (`twilio`) |
+| `SMS_TWILIO_ACCOUNT_SID` | – | Twilio Account SID |
+| `SMS_TWILIO_AUTH_TOKEN` | – | Twilio Auth Token |
+| `SMS_FROM` | – | Twilio sender number |
+| `SMS_TO` | – | Comma-separated destination numbers |
+| `PUSH_ENABLED` | `false` | Enable push alerts |
+| `PUSH_PROVIDER` | `fcm` | Push provider (`fcm` or `webhook`) |
+| `PUSH_FCM_SERVER_KEY` | – | FCM server key |
+| `PUSH_FCM_DEVICE_TOKENS` | – | Comma-separated FCM device tokens |
+| `PUSH_FCM_TOPIC` | – | FCM topic name (optional alternative to tokens) |
+| `PUSH_WEBHOOK_URL` | – | Push webhook endpoint (when provider is `webhook`) |
+| `PUSH_WEBHOOK_AUTH_TOKEN` | – | Optional bearer token for push webhook |
 
 ---
 
