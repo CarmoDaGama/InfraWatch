@@ -1,25 +1,29 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { requirePermission, normalizeRole, VALID_ROLES } from '../middleware/rbac.js';
+import { toApiUser } from '../serializers.js';
 
 export default function usersRouter(db) {
   const router = Router();
 
-  router.get('/', requirePermission('users:read'), (_req, res) => {
+  router.get('/', requirePermission('users:read'), async (_req, res) => {
     try {
-      const users = db
-        .prepare(
-          `SELECT id, email, role, created_at
-           FROM users
-           ORDER BY created_at ASC`
-        )
-        .all();
-      res.json(users);
+      const users = await db.user.findMany({
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      res.json(users.map(toApiUser));
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  router.patch('/:id/role', requirePermission('users:update'), (req, res) => {
+  router.patch('/:id/role', requirePermission('users:update'), async (req, res) => {
     const userId = parseInt(req.params.id, 10);
     if (!Number.isInteger(userId) || userId <= 0) {
       return res.status(400).json({ error: 'Invalid user id' });
@@ -31,33 +35,47 @@ export default function usersRouter(db) {
     }
 
     try {
-      const user = db.prepare('SELECT id, role FROM users WHERE id = ?').get(userId);
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          createdAt: true,
+        },
+      });
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
 
       const currentRole = normalizeRole(user.role) ?? 'viewer';
       if (currentRole === nextRole) {
-        const unchanged = db
-          .prepare('SELECT id, email, role, created_at FROM users WHERE id = ?')
-          .get(userId);
-        return res.json(unchanged);
+        return res.json(toApiUser(user));
       }
 
       // Prevent locking out administration by demoting the last admin.
       if (currentRole === 'admin' && nextRole !== 'admin') {
-        const admins = db.prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin'").get();
-        if ((admins?.count ?? 0) <= 1) {
+        const adminCount = await db.user.count({ where: { role: 'admin' } });
+        if (adminCount <= 1) {
           return res.status(400).json({ error: 'Cannot demote the last admin user' });
         }
       }
 
-      db.prepare('UPDATE users SET role = ? WHERE id = ?').run(nextRole, userId);
-      const updated = db
-        .prepare('SELECT id, email, role, created_at FROM users WHERE id = ?')
-        .get(userId);
-      return res.json(updated);
+      const updated = await db.user.update({
+        where: { id: userId },
+        data: { role: nextRole },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          createdAt: true,
+        },
+      });
+      return res.json(toApiUser(updated));
     } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        return res.status(404).json({ error: 'User not found' });
+      }
       return res.status(500).json({ error: err.message });
     }
   });

@@ -1,27 +1,16 @@
 import request from 'supertest';
-import Database from 'better-sqlite3';
 import express from 'express';
 import usersRouter from '../routes/users.js';
+import { cleanupTestDbs, createTestDb } from './testDb.js';
 
-const openDbs = [];
-
-function buildApp(role = 'admin') {
-  const db = new Database(':memory:');
-  openDbs.push(db);
-  db.exec(`
-    CREATE TABLE users (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      email         TEXT    NOT NULL UNIQUE,
-      role          TEXT    NOT NULL DEFAULT 'viewer',
-      password_hash TEXT    NOT NULL,
-      created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-
-  db.prepare('INSERT INTO users (email, role, password_hash) VALUES (?, ?, ?)')
-    .run('admin@infrawatch.local', 'admin', 'hash1');
-  db.prepare('INSERT INTO users (email, role, password_hash) VALUES (?, ?, ?)')
-    .run('viewer@infrawatch.local', 'viewer', 'hash2');
+async function buildApp(role = 'admin') {
+  const db = await createTestDb();
+  await db.user.create({
+    data: { email: 'admin@infrawatch.local', role: 'admin', passwordHash: 'hash1' },
+  });
+  await db.user.create({
+    data: { email: 'viewer@infrawatch.local', role: 'viewer', passwordHash: 'hash2' },
+  });
 
   const app = express();
   app.use(express.json());
@@ -34,19 +23,12 @@ function buildApp(role = 'admin') {
 }
 
 describe('Users API (RBAC)', () => {
-  afterEach(() => {
-    while (openDbs.length > 0) {
-      const db = openDbs.pop();
-      try {
-        db.close();
-      } catch {
-        // ignore close errors during test teardown
-      }
-    }
+  afterEach(async () => {
+    await cleanupTestDbs();
   });
 
   test('GET /api/users returns users for admin', async () => {
-    const { app } = buildApp('admin');
+    const { app } = await buildApp('admin');
     const res = await request(app).get('/api/users');
 
     expect(res.status).toBe(200);
@@ -56,15 +38,18 @@ describe('Users API (RBAC)', () => {
   });
 
   test('GET /api/users returns 403 for non-admin', async () => {
-    const { app } = buildApp('viewer');
+    const { app } = await buildApp('viewer');
     const res = await request(app).get('/api/users');
 
     expect(res.status).toBe(403);
   });
 
   test('PATCH /api/users/:id/role updates role for admin', async () => {
-    const { app, db } = buildApp('admin');
-    const viewer = db.prepare('SELECT id FROM users WHERE email = ?').get('viewer@infrawatch.local');
+    const { app, db } = await buildApp('admin');
+    const viewer = await db.user.findUnique({
+      where: { email: 'viewer@infrawatch.local' },
+      select: { id: true },
+    });
 
     const res = await request(app)
       .patch(`/api/users/${viewer.id}/role`)
@@ -75,8 +60,11 @@ describe('Users API (RBAC)', () => {
   });
 
   test('PATCH /api/users/:id/role blocks demotion of last admin', async () => {
-    const { app, db } = buildApp('admin');
-    const admin = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@infrawatch.local');
+    const { app, db } = await buildApp('admin');
+    const admin = await db.user.findUnique({
+      where: { email: 'admin@infrawatch.local' },
+      select: { id: true },
+    });
 
     const res = await request(app)
       .patch(`/api/users/${admin.id}/role`)

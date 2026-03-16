@@ -11,7 +11,7 @@ interface CheckResult {
 }
 
 function resolveDeviceIntervalMs(device, fallbackMs) {
-  const intervalSeconds = Number(device?.check_interval_seconds);
+  const intervalSeconds = Number(device?.checkIntervalSeconds ?? device?.check_interval_seconds);
   if (Number.isInteger(intervalSeconds) && intervalSeconds > 0) {
     return intervalSeconds * 1000;
   }
@@ -51,9 +51,9 @@ export function checkSnmp(device): Promise<CheckResult> {
   return new Promise((resolve) => {
     const start     = Date.now();
     const host      = device.url;
-    const community = device.snmp_community ?? 'public';
-    const oid       = device.snmp_oid       ?? '1.3.6.1.2.1.1.1.0';
-    const port      = device.snmp_port      ?? 161;
+    const community = device.snmpCommunity ?? device.snmp_community ?? 'public';
+    const oid       = device.snmpOid ?? device.snmp_oid ?? '1.3.6.1.2.1.1.1.0';
+    const port      = device.snmpPort ?? device.snmp_port ?? 161;
 
     let session;
     try {
@@ -106,81 +106,90 @@ export function startMonitoring(db, notifyFn) {
   const tickMs = Math.min(1000, fallbackIntervalMs);
   const lastCheckAtByDevice = new Map();
   const inFlight = new Set();
+  let pollRunning = false;
 
   const poll = async () => {
-    const devices = db
-      .prepare('SELECT * FROM devices WHERE enabled = 1')
-      .all();
+    if (pollRunning) return;
+    pollRunning = true;
 
-    const enabledIds = new Set(devices.map((d) => d.id));
-    for (const deviceId of lastCheckAtByDevice.keys()) {
-      if (!enabledIds.has(deviceId)) {
-        lastCheckAtByDevice.delete(deviceId);
+    try {
+      const devices = await db.device.findMany({
+        where: { enabled: true },
+      });
+
+      const enabledIds = new Set(devices.map((device) => device.id));
+      for (const deviceId of lastCheckAtByDevice.keys()) {
+        if (!enabledIds.has(deviceId)) {
+          lastCheckAtByDevice.delete(deviceId);
+        }
       }
-    }
-    for (const deviceId of inFlight) {
-      if (!enabledIds.has(deviceId)) {
-        inFlight.delete(deviceId);
+      for (const deviceId of inFlight) {
+        if (!enabledIds.has(deviceId)) {
+          inFlight.delete(deviceId);
+        }
       }
-    }
 
-    const now = Date.now();
-    const dueDevices = [];
+      const now = Date.now();
+      const dueDevices = [];
 
-    for (const device of devices) {
-      if (inFlight.has(device.id)) continue;
+      for (const device of devices) {
+        if (inFlight.has(device.id)) continue;
 
-      const intervalMs = resolveDeviceIntervalMs(device, fallbackIntervalMs);
-      const lastCheckAt = lastCheckAtByDevice.get(device.id) ?? 0;
-      if (now - lastCheckAt < intervalMs) continue;
+        const intervalMs = resolveDeviceIntervalMs(device, fallbackIntervalMs);
+        const lastCheckAt = lastCheckAtByDevice.get(device.id) ?? 0;
+        if (now - lastCheckAt < intervalMs) continue;
 
-      lastCheckAtByDevice.set(device.id, now);
-      inFlight.add(device.id);
-      dueDevices.push(device);
-    }
+        lastCheckAtByDevice.set(device.id, now);
+        inFlight.add(device.id);
+        dueDevices.push(device);
+      }
 
-    if (dueDevices.length === 0) return;
+      if (dueDevices.length === 0) return;
 
-    // Run all device checks concurrently — SNMP in particular can have 5 s timeouts.
-    const results = await Promise.all(
-      dueDevices.map(async (device) => {
+      const results = await Promise.all(
+        dueDevices.map(async (device) => {
+          try {
+            const { status, response_time } = await checkDevice(device);
+            return { device, status, response_time };
+          } catch {
+            return { device, status: 'down', response_time: null };
+          }
+        })
+      );
+
+      for (const { device, status, response_time } of results) {
         try {
-          const { status, response_time } = await checkDevice(device);
-          return { device, status, response_time };
-        } catch {
-          return { device, status: 'down', response_time: null };
+          const previousMetric = await db.metric.findFirst({
+            where: { deviceId: device.id },
+            select: { status: true },
+            orderBy: { checkedAt: 'desc' },
+          });
+
+          await db.metric.create({
+            data: {
+              deviceId: device.id,
+              status,
+              responseTime: response_time,
+            },
+          });
+
+          const previousStatus = previousMetric?.status ?? null;
+          if (previousStatus !== status) {
+            void notifyFn(device, status, previousStatus);
+          }
+        } finally {
+          inFlight.delete(device.id);
         }
-      })
-    );
-
-    // DB writes and notifications are sequential (better-sqlite3 is synchronous).
-    for (const { device, status, response_time } of results) {
-      try {
-        const prev = db
-          .prepare(
-            `SELECT status FROM metrics
-             WHERE device_id = ?
-             ORDER BY checked_at DESC
-             LIMIT 1`
-          )
-          .get(device.id);
-
-        db.prepare(
-          'INSERT INTO metrics (device_id, status, response_time) VALUES (?, ?, ?)'
-        ).run(device.id, status, response_time);
-
-        const previousStatus = prev?.status ?? null;
-        if (previousStatus !== status) {
-          notifyFn(device, status, previousStatus);
-        }
-      } finally {
-        inFlight.delete(device.id);
       }
+    } finally {
+      pollRunning = false;
     }
   };
 
-  poll();
-  intervalId = setInterval(poll, tickMs);
+  void poll();
+  intervalId = setInterval(() => {
+    void poll();
+  }, tickMs);
   return intervalId;
 }
 

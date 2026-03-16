@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Device {
+  id                   Int      @id @default(autoincrement())
+  name                 String
+  url                  String   @unique
+  createdAt            DateTime @default(now()) @map("created_at")
+  enabled              Boolean  @default(true)
+  type                 String   @default("http")
+  snmpCommunity        String?  @default("public") @map("snmp_community")
+  snmpOid              String?  @default("1.3.6.1.2.1.1.1.0") @map("snmp_oid")
+  snmpPort             Int?     @default(161) @map("snmp_port")
+  slaTarget            Float?   @default(99.0) @map("sla_target")
+  criticality          String?  @default("medium")
+  checkIntervalSeconds Int?     @default(60) @map("check_interval_seconds")
+  metrics              Metric[]
+
+  @@map("devices")
+}
+
+model Metric {
+  id           Int      @id @default(autoincrement())
+  deviceId     Int      @map("device_id")
+  status       String
+  responseTime Float?   @map("response_time")
+  checkedAt    DateTime @default(now()) @map("checked_at")
+  device       Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("metrics")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  role         String   @default("viewer")
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("users")
+}

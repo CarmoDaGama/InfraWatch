@@ -1,49 +1,19 @@
 import request from 'supertest';
-import Database from 'better-sqlite3';
 import express from 'express';
 import metricsRouter from '../routes/metrics.js';
+import { cleanupTestDbs, createTestDb } from './testDb.js';
 
-const openDbs = [];
-
-function buildApp(role = 'viewer') {
-  const db = new Database(':memory:');
-  openDbs.push(db);
-  db.pragma('foreign_keys = ON');
-  db.exec(`
-    CREATE TABLE devices (
-      id             INTEGER PRIMARY KEY AUTOINCREMENT,
-      name           TEXT    NOT NULL,
-      url            TEXT    NOT NULL UNIQUE,
-      created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
-      enabled        INTEGER  DEFAULT 1,
-      type           TEXT     NOT NULL DEFAULT 'http',
-      snmp_community TEXT     DEFAULT 'public',
-      snmp_oid       TEXT     DEFAULT '1.3.6.1.2.1.1.1.0',
-      snmp_port      INTEGER  DEFAULT 161,
-      sla_target     REAL     DEFAULT 99.0,
-      criticality    TEXT     DEFAULT 'medium',
-      check_interval_seconds INTEGER DEFAULT 60
-    );
-    CREATE TABLE metrics (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      device_id     INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-      status        TEXT    NOT NULL,
-      response_time REAL,
-      checked_at    DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-
-  const deviceResult = db
-    .prepare('INSERT INTO devices (name, url) VALUES (?, ?)')
-    .run('Test Device', 'http://example.com');
-  const deviceId = deviceResult.lastInsertRowid;
-
-  db.prepare(
-    'INSERT INTO metrics (device_id, status, response_time) VALUES (?, ?, ?)'
-  ).run(deviceId, 'up', 120);
-  db.prepare(
-    'INSERT INTO metrics (device_id, status, response_time) VALUES (?, ?, ?)'
-  ).run(deviceId, 'down', null);
+async function buildApp(role = 'viewer') {
+  const db = await createTestDb();
+  const device = await db.device.create({
+    data: { name: 'Test Device', url: 'http://example.com' },
+  });
+  await db.metric.create({
+    data: { deviceId: device.id, status: 'up', responseTime: 120 },
+  });
+  await db.metric.create({
+    data: { deviceId: device.id, status: 'down', responseTime: null },
+  });
 
   const app = express();
   app.use(express.json());
@@ -54,30 +24,23 @@ function buildApp(role = 'viewer') {
     next();
   });
   app.use('/api/metrics', metricsRouter(db));
-  return { app, db, deviceId };
+  return { app, db, deviceId: device.id };
 }
 
 describe('Metrics API', () => {
-  afterEach(() => {
-    while (openDbs.length > 0) {
-      const db = openDbs.pop();
-      try {
-        db.close();
-      } catch {
-        // ignore close errors during test teardown
-      }
-    }
+  afterEach(async () => {
+    await cleanupTestDbs();
   });
 
   test('GET /api/metrics returns 200', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const res = await request(app).get('/api/metrics');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
 
   test('GET /api/metrics?device_id=X filters by device', async () => {
-    const { app, deviceId } = buildApp();
+    const { app, deviceId } = await buildApp();
     const res = await request(app).get(`/api/metrics?device_id=${deviceId}`);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -86,7 +49,7 @@ describe('Metrics API', () => {
   });
 
   test('GET /api/metrics/uptime returns 200', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const res = await request(app).get('/api/metrics/uptime');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -94,7 +57,7 @@ describe('Metrics API', () => {
   });
 
   test('GET /api/metrics returns 401 without authenticated role', async () => {
-    const { app } = buildApp(null);
+    const { app } = await buildApp(null);
     const res = await request(app).get('/api/metrics');
     expect(res.status).toBe(401);
   });

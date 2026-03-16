@@ -1,5 +1,4 @@
 import { jest } from '@jest/globals';
-import Database from 'better-sqlite3';
 
 // All jest.unstable_mockModule calls must appear before any dynamic import
 // of the module under test (ESM module mock system requirement).
@@ -33,25 +32,49 @@ jest.unstable_mockModule('axios', () => ({
 const { checkDevice, checkPing, checkSnmp, startMonitoring, stopMonitoring } = await import('../monitor.js');
 
 function buildSchedulerDb() {
-  const db = new Database(':memory:');
-  db.exec(`
-    CREATE TABLE devices (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      url TEXT NOT NULL,
-      enabled INTEGER DEFAULT 1,
-      type TEXT DEFAULT 'http',
-      check_interval_seconds INTEGER
-    );
-    CREATE TABLE metrics (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      device_id INTEGER NOT NULL,
-      status TEXT NOT NULL,
-      response_time REAL,
-      checked_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-  return db;
+  let nextDeviceId = 1;
+  let nextMetricId = 1;
+  const devices = [];
+  const metrics = [];
+
+  return {
+    device: {
+      async create({ data }) {
+        const device = {
+          id: nextDeviceId++,
+          enabled: true,
+          ...data,
+        };
+        devices.push(device);
+        return device;
+      },
+      async findMany({ where }) {
+        if (where?.enabled === true) {
+          return devices.filter((device) => device.enabled !== false);
+        }
+        return [...devices];
+      },
+    },
+    metric: {
+      async findFirst({ where }) {
+        return [...metrics]
+          .filter((metric) => metric.deviceId === where.deviceId)
+          .sort((left, right) => right.checkedAt.getTime() - left.checkedAt.getTime())[0] ?? null;
+      },
+      async create({ data }) {
+        const metric = {
+          id: nextMetricId++,
+          checkedAt: new Date(),
+          ...data,
+        };
+        metrics.push(metric);
+        return metric;
+      },
+      async count({ where }) {
+        return metrics.filter((metric) => metric.deviceId === where.deviceId).length;
+      },
+    },
+  };
 }
 
 // ── Ping tests ────────────────────────────────────────────────────────────────
@@ -202,30 +225,29 @@ describe('startMonitoring scheduler', () => {
 
   test('runs faster devices more frequently using check_interval_seconds', async () => {
     const db = buildSchedulerDb();
-    const fastId = db
-      .prepare('INSERT INTO devices (name, url, type, check_interval_seconds) VALUES (?, ?, ?, ?)')
-      .run('Fast', 'http://fast.test', 'http', 2).lastInsertRowid;
-    const slowId = db
-      .prepare('INSERT INTO devices (name, url, type, check_interval_seconds) VALUES (?, ?, ?, ?)')
-      .run('Slow', 'http://slow.test', 'http', 6).lastInsertRowid;
+    const fast = await db.device.create({
+      data: { name: 'Fast', url: 'http://fast.test', type: 'http', checkIntervalSeconds: 2 },
+    });
+    const slow = await db.device.create({
+      data: { name: 'Slow', url: 'http://slow.test', type: 'http', checkIntervalSeconds: 6 },
+    });
 
     startMonitoring(db, jest.fn());
     await jest.advanceTimersByTimeAsync(7000);
 
-    const fastChecks = db.prepare('SELECT COUNT(*) AS c FROM metrics WHERE device_id = ?').get(fastId).c;
-    const slowChecks = db.prepare('SELECT COUNT(*) AS c FROM metrics WHERE device_id = ?').get(slowId).c;
+    const fastChecks = await db.metric.count({ where: { deviceId: fast.id } });
+    const slowChecks = await db.metric.count({ where: { deviceId: slow.id } });
 
     expect(fastChecks).toBeGreaterThan(slowChecks);
     expect(fastChecks).toBeGreaterThanOrEqual(3);
     expect(slowChecks).toBeGreaterThanOrEqual(1);
-    db.close();
   });
 
   test('uses MONITOR_INTERVAL fallback when check_interval_seconds is missing', async () => {
     const db = buildSchedulerDb();
-    const deviceId = db
-      .prepare('INSERT INTO devices (name, url, type, check_interval_seconds) VALUES (?, ?, ?, ?)')
-      .run('Legacy', 'http://legacy.test', 'http', null).lastInsertRowid;
+    const legacy = await db.device.create({
+      data: { name: 'Legacy', url: 'http://legacy.test', type: 'http', checkIntervalSeconds: null },
+    });
 
     const originalMonitorInterval = process.env.MONITOR_INTERVAL;
     process.env.MONITOR_INTERVAL = '5000';
@@ -233,19 +255,14 @@ describe('startMonitoring scheduler', () => {
       startMonitoring(db, jest.fn());
       await jest.advanceTimersByTimeAsync(4500);
 
-      const beforeFallbackWindow = db
-        .prepare('SELECT COUNT(*) AS c FROM metrics WHERE device_id = ?')
-        .get(deviceId).c;
+      const beforeFallbackWindow = await db.metric.count({ where: { deviceId: legacy.id } });
       expect(beforeFallbackWindow).toBe(1);
 
       await jest.advanceTimersByTimeAsync(1000);
-      const afterFallbackWindow = db
-        .prepare('SELECT COUNT(*) AS c FROM metrics WHERE device_id = ?')
-        .get(deviceId).c;
+      const afterFallbackWindow = await db.metric.count({ where: { deviceId: legacy.id } });
       expect(afterFallbackWindow).toBeGreaterThanOrEqual(2);
     } finally {
       process.env.MONITOR_INTERVAL = originalMonitorInterval;
-      db.close();
     }
   });
 });

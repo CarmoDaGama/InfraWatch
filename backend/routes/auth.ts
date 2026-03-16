@@ -12,50 +12,54 @@ export default function authRouter(db) {
   const router = Router();
 
   // POST /api/auth/login
-  router.post('/login', (req, res) => {
+  router.post('/login', async (req, res) => {
     const { email, password } = req.body ?? {};
 
     if (!email || !password) {
       return res.status(400).json({ error: 'email and password are required' });
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-    if (!user) {
-      sendAlert(
-        'InfraWatch Security: Tentativa de Login Falhada',
-        `Tentativa de login para email desconhecido "${email}" a partir de IP ${req.ip} em ${new Date().toISOString()}`
+    try {
+      const user = await db.user.findUnique({ where: { email } });
+      if (!user) {
+        void sendAlert(
+          'InfraWatch Security: Tentativa de Login Falhada',
+          `Tentativa de login para email desconhecido "${email}" a partir de IP ${req.ip} em ${new Date().toISOString()}`
+        );
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+
+      const valid = bcrypt.compareSync(password, user.passwordHash);
+      if (!valid) {
+        void sendAlert(
+          'InfraWatch Security: Tentativa de Login Falhada',
+          `Senha incorreta para o utilizador "${email}" a partir de IP ${req.ip} em ${new Date().toISOString()}`
+        );
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+
+      const role = normalizeRole(user.role) ?? 'viewer';
+      const permissions = resolvePermissions(role);
+
+      const expiresIn = (process.env.JWT_EXPIRES_IN ?? '8h') as jwt.SignOptions['expiresIn'];
+      const token = jwt.sign(
+        { sub: user.id, email: user.email, role },
+        getJwtSecret(),
+        { expiresIn }
       );
-      return res.status(401).json({ error: 'Invalid credentials' });
+
+      return res.json({
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          role,
+          permissions,
+        },
+      });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
     }
-
-    const valid = bcrypt.compareSync(password, user.password_hash);
-    if (!valid) {
-      sendAlert(
-        'InfraWatch Security: Tentativa de Login Falhada',
-        `Senha incorreta para o utilizador "${email}" a partir de IP ${req.ip} em ${new Date().toISOString()}`
-      );
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    const role = normalizeRole(user.role) ?? 'viewer';
-    const permissions = resolvePermissions(role);
-
-    const expiresIn = (process.env.JWT_EXPIRES_IN ?? '8h') as jwt.SignOptions['expiresIn'];
-    const token = jwt.sign(
-      { sub: user.id, email: user.email, role },
-      getJwtSecret(),
-      { expiresIn }
-    );
-
-    return res.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        role,
-        permissions,
-      },
-    });
   });
 
   return router;

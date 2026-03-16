@@ -1,16 +1,12 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/rbac.js';
+import { toApiMetric, toIsoString } from '../serializers.js';
 
-// Returns a SQLite strftime expression that groups timestamps into buckets.
-// For short windows (<=2h) returns null → caller uses raw rows.
-function bucketExpr(hours) {
-  if (hours <= 2)   return null;
-  if (hours <= 6)   // 5-min buckets
-    return "strftime('%Y-%m-%dT%H:', checked_at) || printf('%02d', (cast(strftime('%M', checked_at) AS INTEGER) / 5) * 5) || ':00.000Z'";
-  if (hours <= 24)  // 15-min buckets
-    return "strftime('%Y-%m-%dT%H:', checked_at) || printf('%02d', (cast(strftime('%M', checked_at) AS INTEGER) / 15) * 15) || ':00.000Z'";
-  // hourly buckets (7d)
-  return "strftime('%Y-%m-%dT%H:00:00.000Z', checked_at)";
+function getBucketSizeMinutes(hours) {
+  if (hours <= 2) return null;
+  if (hours <= 6) return 5;
+  if (hours <= 24) return 15;
+  return 60;
 }
 
 function getQueryValue(value, fallback) {
@@ -23,31 +19,68 @@ function getQueryValue(value, fallback) {
   return fallback;
 }
 
+function parsePositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function getBucketStart(timestamp, bucketSizeMinutes) {
+  const bucket = new Date(timestamp);
+  bucket.setUTCSeconds(0, 0);
+
+  if (bucketSizeMinutes === 60) {
+    bucket.setUTCMinutes(0);
+  } else {
+    bucket.setUTCMinutes(Math.floor(bucket.getUTCMinutes() / bucketSizeMinutes) * bucketSizeMinutes);
+  }
+
+  return bucket.toISOString();
+}
+
+type MetricBucket = {
+  bucket: string;
+  hasDown: boolean;
+  responseTimeTotal: number;
+  upChecks: number;
+  check_count: number;
+};
+
 export default function metricsRouter(db) {
   const router = Router();
 
-  router.get('/', requirePermission('metrics:read'), (req, res) => {
+  router.get('/', requirePermission('metrics:read'), async (req, res) => {
     try {
-      const hours = parseInt(getQueryValue(req.query.hours, '24'), 10);
-      const limit = parseInt(getQueryValue(req.query.limit, '200'), 10);
+      const hours = parsePositiveInteger(getQueryValue(req.query.hours, '24'), 24);
+      const limit = parsePositiveInteger(getQueryValue(req.query.limit, '200'), 200);
       const deviceId = getQueryValue(req.query.device_id, '');
+      const parsedDeviceId = deviceId ? Number.parseInt(deviceId, 10) : null;
 
-      let query = `SELECT m.*, d.name AS device_name, d.url AS device_url
-                   FROM metrics m
-                   JOIN devices d ON d.id = m.device_id
-                   WHERE m.checked_at >= datetime('now', ?)`;
-      const params = [`-${hours} hours`];
-
-      if (deviceId) {
-        query += ' AND m.device_id = ?';
-        params.push(deviceId);
+      if (deviceId && (!Number.isInteger(parsedDeviceId) || parsedDeviceId <= 0)) {
+        return res.status(400).json({ error: 'Invalid device_id' });
       }
 
-      query += ' ORDER BY m.checked_at DESC LIMIT ?';
-      params.push(String(limit));
+      const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+      const metrics = await db.metric.findMany({
+        where: {
+          checkedAt: { gte: since },
+          ...(parsedDeviceId ? { deviceId: parsedDeviceId } : {}),
+        },
+        include: {
+          device: {
+            select: {
+              name: true,
+              url: true,
+            },
+          },
+        },
+        orderBy: { checkedAt: 'desc' },
+        take: limit,
+      });
 
-      const metrics = db.prepare(query).all(...params);
-      res.json(metrics);
+      res.json(metrics.map(toApiMetric));
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -56,54 +89,86 @@ export default function metricsRouter(db) {
   // Per-device time-series endpoint for the history drawer.
   // Returns bucketed data (5 min / 15 min / 1 h) for longer windows to keep
   // the payload small, plus aggregated stats for the period.
-  router.get('/device/:id', requirePermission('metrics:read'), (req, res) => {
+  router.get('/device/:id', requirePermission('metrics:read'), async (req, res) => {
+    const deviceId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(deviceId) || deviceId <= 0) {
+      return res.status(400).json({ error: 'Invalid device id' });
+    }
+
     try {
-      const hours = parseInt(getQueryValue(req.query.hours, '24'), 10);
-      const timeFilter = `-${hours} hours`;
-      const expr = bucketExpr(hours);
+      const hours = parsePositiveInteger(getQueryValue(req.query.hours, '24'), 24);
+      const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+      const bucketSizeMinutes = getBucketSizeMinutes(hours);
 
-      let metrics;
+      const rows = await db.metric.findMany({
+        where: {
+          deviceId,
+          checkedAt: { gte: since },
+        },
+        select: {
+          status: true,
+          responseTime: true,
+          checkedAt: true,
+        },
+        orderBy: { checkedAt: 'asc' },
+        take: bucketSizeMinutes === null ? 720 : undefined,
+      });
 
-      if (expr === null) {
-        // Raw rows for short windows (≤2 h)
-        metrics = db.prepare(`
-          SELECT checked_at AS bucket, status,
-                 response_time, 1 AS check_count
-          FROM metrics
-          WHERE device_id = ? AND checked_at >= datetime('now', ?)
-          ORDER BY checked_at ASC
-          LIMIT 720
-        `).all(req.params.id, timeFilter);
-      } else {
-        metrics = db.prepare(`
-          SELECT bucket,
-                 CASE WHEN SUM(down_flag) > 0 THEN 'down' ELSE 'up' END AS status,
-                 AVG(CASE WHEN status = 'up' THEN response_time END)     AS response_time,
-                 COUNT(*)                                                  AS check_count
-          FROM (
-            SELECT ${expr} AS bucket,
-                   status,
-                   response_time,
-                   CASE WHEN status = 'down' THEN 1 ELSE 0 END AS down_flag
-            FROM metrics
-            WHERE device_id = ? AND checked_at >= datetime('now', ?)
-          )
-          GROUP BY bucket
-          ORDER BY bucket ASC
-        `).all(req.params.id, timeFilter);
-      }
+      const metrics =
+        bucketSizeMinutes === null
+          ? rows.map((row) => ({
+              bucket: toIsoString(row.checkedAt),
+              status: row.status,
+              response_time: row.responseTime,
+              check_count: 1,
+            }))
+          : (() => {
+              const buckets = rows.reduce((accumulator, row) => {
+                const bucket = getBucketStart(row.checkedAt, bucketSizeMinutes);
+                const current = accumulator.get(bucket) ?? {
+                  bucket,
+                  hasDown: false,
+                  responseTimeTotal: 0,
+                  upChecks: 0,
+                  check_count: 0,
+                };
 
-      // Aggregated stats for the full period
-      const stats = db.prepare(`
-        SELECT COUNT(*)                                                   AS total,
-               SUM(CASE WHEN status = 'up'   THEN 1 ELSE 0 END)          AS up_count,
-               SUM(CASE WHEN status = 'down' THEN 1 ELSE 0 END)          AS down_count,
-               AVG(CASE WHEN status = 'up'   THEN response_time END)     AS avg_rt,
-               MIN(CASE WHEN status = 'up'   THEN response_time END)     AS min_rt,
-               MAX(CASE WHEN status = 'up'   THEN response_time END)     AS max_rt
-        FROM metrics
-        WHERE device_id = ? AND checked_at >= datetime('now', ?)
-      `).get(req.params.id, timeFilter);
+                current.hasDown = current.hasDown || row.status === 'down';
+                current.check_count += 1;
+                if (row.status === 'up' && typeof row.responseTime === 'number') {
+                  current.responseTimeTotal += row.responseTime;
+                  current.upChecks += 1;
+                }
+
+                accumulator.set(bucket, current);
+                return accumulator;
+              }, new Map<string, MetricBucket>());
+              const bucketValues = Array.from(buckets.values()) as MetricBucket[];
+
+              return bucketValues
+                .sort((left, right) => left.bucket.localeCompare(right.bucket))
+                .map((bucket) => ({
+                  bucket: bucket.bucket,
+                  status: bucket.hasDown ? 'down' : 'up',
+                  response_time: bucket.upChecks > 0 ? bucket.responseTimeTotal / bucket.upChecks : null,
+                  check_count: bucket.check_count,
+                }));
+            })();
+
+      const upResponseTimes = rows
+        .filter((row) => row.status === 'up' && typeof row.responseTime === 'number')
+        .map((row) => row.responseTime as number);
+      const stats = {
+        total: rows.length,
+        up_count: rows.filter((row) => row.status === 'up').length,
+        down_count: rows.filter((row) => row.status === 'down').length,
+        avg_rt:
+          upResponseTimes.length > 0
+            ? upResponseTimes.reduce((sum, value) => sum + value, 0) / upResponseTimes.length
+            : null,
+        min_rt: upResponseTimes.length > 0 ? Math.min(...upResponseTimes) : null,
+        max_rt: upResponseTimes.length > 0 ? Math.max(...upResponseTimes) : null,
+      };
 
       res.json({ metrics, stats });
     } catch (err) {
@@ -111,39 +176,40 @@ export default function metricsRouter(db) {
     }
   });
 
-  router.get('/uptime', requirePermission('metrics:read'), (req, res) => {
+  router.get('/uptime', requirePermission('metrics:read'), async (req, res) => {
     try {
-      const hours = parseInt(getQueryValue(req.query.hours, '24'), 10);
+      const hours = parsePositiveInteger(getQueryValue(req.query.hours, '24'), 24);
+      const since = new Date(Date.now() - hours * 60 * 60 * 1000);
 
-      const rows = db
-        .prepare(
-          `SELECT d.id, d.name, d.url, d.sla_target, d.criticality,
-                  COUNT(m.id)                                       AS total,
-                  SUM(CASE WHEN m.status = 'up' THEN 1 ELSE 0 END) AS up_count
-           FROM devices d
-           LEFT JOIN metrics m
-             ON m.device_id = d.id
-            AND m.checked_at >= datetime('now', ?)
-           GROUP BY d.id`
-        )
-        .all(`-${hours} hours`);
+      const devices = await db.device.findMany({
+        orderBy: { createdAt: 'asc' },
+        include: {
+          metrics: {
+            where: { checkedAt: { gte: since } },
+            select: { status: true },
+          },
+        },
+      });
 
-      const uptime = rows.map((r) => {
-        const uptime_pct =
-          r.total > 0 ? Math.round((r.up_count / r.total) * 10000) / 100 : null;
-        const sla_target   = r.sla_target   ?? 99.0;
-        const criticality  = r.criticality  ?? 'medium';
-        const sla_met      = uptime_pct !== null ? uptime_pct >= sla_target : null;
+      const uptime = devices.map((device) => {
+        const totalChecks = device.metrics.length;
+        const upCount = device.metrics.filter((metric) => metric.status === 'up').length;
+        const uptimePct =
+          totalChecks > 0 ? Math.round((upCount / totalChecks) * 10000) / 100 : null;
+        const slaTarget = device.slaTarget ?? 99.0;
+        const criticality = device.criticality ?? 'medium';
+        const slaMet = uptimePct !== null ? uptimePct >= slaTarget : null;
+
         return {
-          id: r.id,
-          name: r.name,
-          url: r.url,
-          sla_target,
+          id: device.id,
+          name: device.name,
+          url: device.url,
+          sla_target: slaTarget,
           criticality,
-          uptime_pct,
-          sla_met,
-          total_checks: r.total,
-          up_count: r.up_count,
+          uptime_pct: uptimePct,
+          sla_met: slaMet,
+          total_checks: totalChecks,
+          up_count: upCount,
         };
       });
 

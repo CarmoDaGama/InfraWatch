@@ -1,37 +1,10 @@
 import request from 'supertest';
-import Database from 'better-sqlite3';
 import express from 'express';
 import devicesRouter from '../routes/devices.js';
+import { cleanupTestDbs, createTestDb } from './testDb.js';
 
-const openDbs = [];
-
-function buildApp(role = 'admin') {
-  const db = new Database(':memory:');
-  openDbs.push(db);
-  db.pragma('foreign_keys = ON');
-  db.exec(`
-    CREATE TABLE devices (
-      id             INTEGER PRIMARY KEY AUTOINCREMENT,
-      name           TEXT    NOT NULL,
-      url            TEXT    NOT NULL UNIQUE,
-      created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
-      enabled        INTEGER  DEFAULT 1,
-      type           TEXT     NOT NULL DEFAULT 'http',
-      snmp_community TEXT     DEFAULT 'public',
-      snmp_oid       TEXT     DEFAULT '1.3.6.1.2.1.1.1.0',
-      snmp_port      INTEGER  DEFAULT 161,
-      sla_target     REAL     DEFAULT 99.0,
-      criticality    TEXT     DEFAULT 'medium',
-      check_interval_seconds INTEGER DEFAULT 60
-    );
-    CREATE TABLE metrics (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      device_id     INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-      status        TEXT    NOT NULL,
-      response_time REAL,
-      checked_at    DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
+async function buildApp(role = 'admin') {
+  const db = await createTestDb();
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
@@ -43,26 +16,19 @@ function buildApp(role = 'admin') {
 }
 
 describe('Devices API', () => {
-  afterEach(() => {
-    while (openDbs.length > 0) {
-      const db = openDbs.pop();
-      try {
-        db.close();
-      } catch {
-        // ignore close errors during test teardown
-      }
-    }
+  afterEach(async () => {
+    await cleanupTestDbs();
   });
 
   test('GET /api/devices returns 200 with array', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const res = await request(app).get('/api/devices');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
 
   test('POST /api/devices creates a device with valid data', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const res = await request(app)
       .post('/api/devices')
       .send({ name: 'Test Device', url: 'http://example.com' });
@@ -74,7 +40,7 @@ describe('Devices API', () => {
   });
 
   test('POST /api/devices returns 400 with missing name', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const res = await request(app)
       .post('/api/devices')
       .send({ url: 'http://example.com' });
@@ -82,7 +48,7 @@ describe('Devices API', () => {
   });
 
   test('POST /api/devices returns 400 with missing url', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const res = await request(app)
       .post('/api/devices')
       .send({ name: 'Test Device' });
@@ -90,22 +56,22 @@ describe('Devices API', () => {
   });
 
   test('DELETE /api/devices/:id deletes a device', async () => {
-    const { app, db } = buildApp();
-    const result = db
-      .prepare('INSERT INTO devices (name, url) VALUES (?, ?)')
-      .run('Del Device', 'http://del.example.com');
-    const id = result.lastInsertRowid;
+    const { app, db } = await buildApp();
+    const device = await db.device.create({
+      data: { name: 'Del Device', url: 'http://del.example.com' },
+    });
+    const id = device.id;
 
     const res = await request(app).delete(`/api/devices/${id}`);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
 
-    const found = db.prepare('SELECT * FROM devices WHERE id = ?').get(id);
-    expect(found).toBeUndefined();
+    const found = await db.device.findUnique({ where: { id } });
+    expect(found).toBeNull();
   });
 
   test('DELETE /api/devices/9999 returns 404', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const res = await request(app).delete('/api/devices/9999');
     expect(res.status).toBe(404);
   });
@@ -113,7 +79,7 @@ describe('Devices API', () => {
   // ── Type-aware tests ────────────────────────────────────────────────────────
 
   test('POST defaults type to http when type is omitted', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const res = await request(app)
       .post('/api/devices')
       .send({ name: 'Legacy', url: 'https://legacy.example.com' });
@@ -122,7 +88,7 @@ describe('Devices API', () => {
   });
 
   test('POST creates a ping device', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const res = await request(app)
       .post('/api/devices')
       .send({ name: 'Router', url: '192.168.1.1', type: 'ping' });
@@ -132,7 +98,7 @@ describe('Devices API', () => {
   });
 
   test('POST creates an snmp device with custom fields', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const res = await request(app)
       .post('/api/devices')
       .send({
@@ -152,7 +118,7 @@ describe('Devices API', () => {
   });
 
   test('POST returns 400 for invalid type', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const res = await request(app)
       .post('/api/devices')
       .send({ name: 'Bad', url: '192.168.1.1', type: 'ftp' });
@@ -161,7 +127,7 @@ describe('Devices API', () => {
   });
 
   test('POST returns 400 when http device has non-http url', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const res = await request(app)
       .post('/api/devices')
       .send({ name: 'Bad HTTP', url: '192.168.1.1', type: 'http' });
@@ -170,7 +136,7 @@ describe('Devices API', () => {
   });
 
   test('POST returns 400 when snmp_port is out of range', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const res = await request(app)
       .post('/api/devices')
       .send({ name: 'BadPort', url: '10.0.0.1', type: 'snmp', snmp_port: 99999 });
@@ -179,7 +145,7 @@ describe('Devices API', () => {
   });
 
   test('POST returns 400 when check_interval_seconds is outside allowed range', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const res = await request(app)
       .post('/api/devices')
       .send({ name: 'TooFast', url: 'http://fast.example.com', check_interval_seconds: 1 });
@@ -188,7 +154,7 @@ describe('Devices API', () => {
   });
 
   test('PATCH /api/devices/:id updates check_interval_seconds', async () => {
-    const { app } = buildApp();
+    const { app } = await buildApp();
     const created = await request(app)
       .post('/api/devices')
       .send({ name: 'Patch Interval', url: 'http://patch.example.com' });
@@ -202,18 +168,18 @@ describe('Devices API', () => {
   });
 
   test('DELETE /api/devices/:id returns 403 for operator role', async () => {
-    const { app, db } = buildApp('operator');
-    const result = db
-      .prepare('INSERT INTO devices (name, url) VALUES (?, ?)')
-      .run('No Delete', 'http://nodelete.example.com');
+    const { app, db } = await buildApp('operator');
+    const device = await db.device.create({
+      data: { name: 'No Delete', url: 'http://nodelete.example.com' },
+    });
 
-    const res = await request(app).delete(`/api/devices/${result.lastInsertRowid}`);
+    const res = await request(app).delete(`/api/devices/${device.id}`);
     expect(res.status).toBe(403);
     expect(res.body.error).toMatch(/Forbidden/);
   });
 
   test('POST /api/devices returns 403 for viewer role', async () => {
-    const { app } = buildApp('viewer');
+    const { app } = await buildApp('viewer');
     const res = await request(app)
       .post('/api/devices')
       .send({ name: 'Read Only', url: 'http://readonly.example.com' });

@@ -1,6 +1,8 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { sendAlert } from '../notify.js';
 import { requirePermission } from '../middleware/rbac.js';
+import { toApiDevice } from '../serializers.js';
 
 const VALID_TYPES        = ['http', 'ping', 'snmp'];
 const VALID_CRITICALITY  = ['low', 'medium', 'high', 'critical'];
@@ -17,31 +19,29 @@ function parseCheckIntervalSeconds(value) {
 export default function devicesRouter(db) {
   const router = Router();
 
-  router.get('/', requirePermission('devices:read'), (req, res) => {
+  router.get('/', requirePermission('devices:read'), async (_req, res) => {
     try {
-      const devices = db
-        .prepare(
-          `SELECT d.*,
-                  m.status        AS last_status,
-                  m.checked_at    AS last_checked,
-                  m.response_time AS last_response_time
-           FROM devices d
-           LEFT JOIN metrics m ON m.id = (
-             SELECT id FROM metrics
-             WHERE device_id = d.id
-             ORDER BY checked_at DESC
-             LIMIT 1
-           )
-           ORDER BY d.created_at ASC`
-        )
-        .all();
-      res.json(devices);
+      const devices = await db.device.findMany({
+        orderBy: { createdAt: 'asc' },
+        include: {
+          metrics: {
+            orderBy: { checkedAt: 'desc' },
+            take: 1,
+            select: {
+              status: true,
+              checkedAt: true,
+              responseTime: true,
+            },
+          },
+        },
+      });
+      res.json(devices.map(toApiDevice));
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  router.post('/', requirePermission('devices:create'), (req, res) => {
+  router.post('/', requirePermission('devices:create'), async (req, res) => {
     const {
       name,
       url,
@@ -85,65 +85,62 @@ export default function devicesRouter(db) {
     }
 
     try {
-      const result = db
-        .prepare(
-          `INSERT INTO devices (
-             name, url, type, snmp_community, snmp_oid, snmp_port, sla_target, criticality, check_interval_seconds
-           )
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        )
-        .run(
-          String(name).trim(),
-          String(url).trim(),
+      const device = await db.device.create({
+        data: {
+          name: String(name).trim(),
+          url: String(url).trim(),
           type,
-          String(snmp_community),
-          String(snmp_oid),
-          type === 'snmp' ? portNum : 161,
-          slaNum,
+          snmpCommunity: String(snmp_community),
+          snmpOid: String(snmp_oid),
+          snmpPort: type === 'snmp' ? portNum : 161,
+          slaTarget: slaNum,
           criticality,
-          checkIntervalNum,
-        );
-      const device = db
-        .prepare('SELECT * FROM devices WHERE id = ?')
-        .get(result.lastInsertRowid);
-      sendAlert(
+          checkIntervalSeconds: checkIntervalNum,
+        },
+      });
+      void sendAlert(
         `InfraWatch: Device Adicionado - ${device.name}`,
         `O device "${device.name}" (${device.url}) foi adicionado ao monitoramento em ${new Date().toISOString()}`
       );
-      res.status(201).json(device);
+      res.status(201).json(toApiDevice(device));
     } catch (err) {
-      if (err.message.includes('UNIQUE')) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         return res.status(409).json({ error: 'A device with that URL/host already exists' });
       }
       res.status(500).json({ error: err.message });
     }
   });
 
-  router.patch('/:id', requirePermission('devices:update'), (req, res) => {
+  router.patch('/:id', requirePermission('devices:update'), async (req, res) => {
     const { sla_target, criticality, check_interval_seconds } = req.body ?? {};
+    const deviceId = parseInt(req.params.id, 10);
+
+    if (!Number.isInteger(deviceId) || deviceId <= 0) {
+      return res.status(400).json({ error: 'Invalid device id' });
+    }
 
     if (sla_target === undefined && criticality === undefined && check_interval_seconds === undefined) {
       return res.status(400).json({ error: 'Provide at least one of: sla_target, criticality, check_interval_seconds' });
     }
 
     const updates = [];
-    const params  = [];
+    const data: { slaTarget?: number; criticality?: string; checkIntervalSeconds?: number } = {};
 
     if (sla_target !== undefined) {
       const slaNum = parseFloat(sla_target);
       if (isNaN(slaNum) || slaNum < 0 || slaNum > 100) {
         return res.status(400).json({ error: 'sla_target must be a number between 0 and 100' });
       }
-      updates.push('sla_target = ?');
-      params.push(slaNum);
+      updates.push('sla_target');
+      data.slaTarget = slaNum;
     }
 
     if (criticality !== undefined) {
       if (!VALID_CRITICALITY.includes(criticality)) {
         return res.status(400).json({ error: `criticality must be one of: ${VALID_CRITICALITY.join(', ')}` });
       }
-      updates.push('criticality = ?');
-      params.push(criticality);
+      updates.push('criticality');
+      data.criticality = criticality;
     }
 
     if (check_interval_seconds !== undefined) {
@@ -153,45 +150,46 @@ export default function devicesRouter(db) {
           error: `check_interval_seconds must be an integer between ${MIN_CHECK_INTERVAL_SECONDS} and ${MAX_CHECK_INTERVAL_SECONDS}`,
         });
       }
-      updates.push('check_interval_seconds = ?');
-      params.push(checkIntervalNum);
+      updates.push('check_interval_seconds');
+      data.checkIntervalSeconds = checkIntervalNum;
     }
 
-    params.push(req.params.id);
-
     try {
-      const result = db
-        .prepare(`UPDATE devices SET ${updates.join(', ')} WHERE id = ?`)
-        .run(...params);
-      if (result.changes === 0) {
-        return res.status(404).json({ error: 'Device not found' });
-      }
-      const device = db.prepare('SELECT * FROM devices WHERE id = ?').get(req.params.id);
-      sendAlert(
+      const device = await db.device.update({
+        where: { id: deviceId },
+        data,
+      });
+      void sendAlert(
         `InfraWatch: Configuração Alterada - ${device.name}`,
         `A configuração do device "${device.name}" (${device.url}) foi alterada em ${new Date().toISOString()}\nCampos alterados: ${updates.join(', ')}`
       );
-      res.json(device);
+      res.json(toApiDevice(device));
     } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        return res.status(404).json({ error: 'Device not found' });
+      }
       res.status(500).json({ error: err.message });
     }
   });
 
-  router.delete('/:id', requirePermission('devices:delete'), (req, res) => {
+  router.delete('/:id', requirePermission('devices:delete'), async (req, res) => {
+    const deviceId = parseInt(req.params.id, 10);
+
+    if (!Number.isInteger(deviceId) || deviceId <= 0) {
+      return res.status(400).json({ error: 'Invalid device id' });
+    }
+
     try {
-      const device = db.prepare('SELECT * FROM devices WHERE id = ?').get(req.params.id);
-      const result = db
-        .prepare('DELETE FROM devices WHERE id = ?')
-        .run(req.params.id);
-      if (result.changes === 0) {
+      const device = await db.device.findUnique({ where: { id: deviceId } });
+      if (!device) {
         return res.status(404).json({ error: 'Device not found' });
       }
-      if (device) {
-        sendAlert(
-          `InfraWatch: Device Removido - ${device.name}`,
-          `O device "${device.name}" (${device.url}) foi removido do monitoramento em ${new Date().toISOString()}`
-        );
-      }
+
+      await db.device.delete({ where: { id: deviceId } });
+      void sendAlert(
+        `InfraWatch: Device Removido - ${device.name}`,
+        `O device "${device.name}" (${device.url}) foi removido do monitoramento em ${new Date().toISOString()}`
+      );
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });

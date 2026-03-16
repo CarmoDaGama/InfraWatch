@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import db from './db.js';
+import db, { ensureDbReady } from './db.js';
 import authRouter from './routes/auth.js';
 import devicesRouter from './routes/devices.js';
 import metricsRouter from './routes/metrics.js';
@@ -10,6 +10,8 @@ import usersRouter from './routes/users.js';
 import { verifyToken } from './middleware/auth.js';
 import { startMonitoring } from './monitor.js';
 import { sendNotification, sendAlert } from './notify.js';
+
+await ensureDbReady();
 
 const app = express();
 
