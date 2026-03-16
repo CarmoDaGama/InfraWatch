@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { sendAlert } from '../notify.js';
+import { requirePermission } from '../middleware/rbac.js';
 
 const VALID_TYPES        = ['http', 'ping', 'snmp'];
 const VALID_CRITICALITY  = ['low', 'medium', 'high', 'critical'];
@@ -16,7 +17,7 @@ function parseCheckIntervalSeconds(value) {
 export default function devicesRouter(db) {
   const router = Router();
 
-  router.get('/', (req, res) => {
+  router.get('/', requirePermission('devices:read'), (req, res) => {
     try {
       const devices = db
         .prepare(
@@ -40,7 +41,7 @@ export default function devicesRouter(db) {
     }
   });
 
-  router.post('/', (req, res) => {
+  router.post('/', requirePermission('devices:create'), (req, res) => {
     const {
       name,
       url,
@@ -118,7 +119,7 @@ export default function devicesRouter(db) {
     }
   });
 
-  router.patch('/:id', (req, res) => {
+  router.patch('/:id', requirePermission('devices:update'), (req, res) => {
     const { sla_target, criticality, check_interval_seconds } = req.body ?? {};
 
     if (sla_target === undefined && criticality === undefined && check_interval_seconds === undefined) {
@@ -176,7 +177,7 @@ export default function devicesRouter(db) {
     }
   });
 
-  router.delete('/:id', (req, res) => {
+  router.delete('/:id', requirePermission('devices:delete'), (req, res) => {
     try {
       const device = db.prepare('SELECT * FROM devices WHERE id = ?').get(req.params.id);
       const result = db

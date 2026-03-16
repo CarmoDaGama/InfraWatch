@@ -33,7 +33,7 @@ function LangSwitcher() {
   )
 }
 
-export default function Header({ onLogout }) {
+export default function Header({ onLogout, role }) {
   const { t } = useTranslation()
   return (
     <header className="bg-gray-900 text-white py-6 px-6 shadow-lg">
@@ -43,6 +43,11 @@ export default function Header({ onLogout }) {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{t('header.title')}</h1>
             <p className="text-gray-400 text-sm mt-0.5">{t('header.subtitle')}</p>
+            {role && (
+              <p className="text-gray-500 text-xs mt-0.5">
+                {t('header.role')}: <span className="font-semibold uppercase tracking-wide">{role}</span>
+              </p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-3">

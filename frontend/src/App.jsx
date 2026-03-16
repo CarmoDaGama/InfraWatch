@@ -7,6 +7,7 @@ import UptimeChart from './components/UptimeChart.jsx'
 import SlaPanel from './components/SlaPanel.jsx'
 import MetricsDrawer from './components/MetricsDrawer.jsx'
 import LoginPage from './components/LoginPage.jsx'
+import UsersPanel from './components/UsersPanel.jsx'
 import { getDevices, deleteDevice, updateDevice, getUptimeStats } from './api.js'
 
 const REFRESH_INTERVAL = 5000
@@ -24,20 +25,42 @@ export default function App() {
   const { t } = useTranslation()
   // Lazy initialiser reads localStorage once on mount — no flicker on refresh.
   const [token, setToken] = useState(() => localStorage.getItem('token'))
+  const [authUser, setAuthUser] = useState(() => {
+    const raw = localStorage.getItem('auth-user')
+    if (!raw) return null
+    try {
+      return JSON.parse(raw)
+    } catch {
+      return null
+    }
+  })
   const [devices, setDevices] = useState([])
   const [uptimeStats, setUptimeStats] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedDevice, setSelectedDevice] = useState(null)
 
-  function handleLogin(newToken) {
+  function handleLogin(auth) {
+    const newToken = auth?.token
+    const newUser = auth?.user ?? null
+    if (!newToken) return
+
     localStorage.setItem('token', newToken)
+    if (newUser) {
+      localStorage.setItem('auth-user', JSON.stringify(newUser))
+    } else {
+      localStorage.removeItem('auth-user')
+    }
+
     setToken(newToken)
+    setAuthUser(newUser)
   }
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('token')
+    localStorage.removeItem('auth-user')
     setToken(null)
+    setAuthUser(null)
     setDevices([])
     setUptimeStats([])
     setSelectedDevice(null)
@@ -50,6 +73,18 @@ export default function App() {
     window.addEventListener('auth:logout', handleLogout)
     return () => window.removeEventListener('auth:logout', handleLogout)
   }, [handleLogout])
+
+  const can = useCallback((permission) => {
+    const permissions = authUser?.permissions
+    if (!Array.isArray(permissions)) return false
+    return permissions.includes('*') || permissions.includes(permission)
+  }, [authUser])
+
+  const canCreateDevices = can('devices:create')
+  const canUpdateDevices = can('devices:update')
+  const canDeleteDevices = can('devices:delete')
+  const canReadUsers = can('users:read')
+  const canUpdateUsers = can('users:update')
 
   const fetchData = useCallback(async () => {
     if (!token) return
@@ -77,6 +112,8 @@ export default function App() {
       setError(
         err.code === 'ERR_NETWORK'
           ? t('app.networkError')
+          : err.response?.status === 403
+            ? t('app.forbidden')
           : t('app.apiError', { message: err.message })
       )
     } finally {
@@ -96,13 +133,25 @@ export default function App() {
       await deleteDevice(id)
       await fetchData()
     } catch (err) {
-      setError(t('app.deleteError', { message: err.message }))
+      setError(
+        err.response?.status === 403
+          ? t('app.forbidden')
+          : t('app.deleteError', { message: err.message })
+      )
     }
   }
 
   async function handleUpdateDevice(id, data) {
-    await updateDevice(id, data)
-    await fetchData()
+    try {
+      await updateDevice(id, data)
+      await fetchData()
+    } catch (err) {
+      setError(
+        err.response?.status === 403
+          ? t('app.forbidden')
+          : t('app.apiError', { message: err.message })
+      )
+    }
   }
 
   if (!token) {
@@ -114,7 +163,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header onLogout={handleLogout} />
+      <Header onLogout={handleLogout} role={authUser?.role} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {error && (
@@ -139,18 +188,21 @@ export default function App() {
               <StatCard label={t('app.down')} value={downCount} color="text-red-600" />
             </div>
 
-            <AddDeviceForm onAdd={fetchData} />
+            {canCreateDevices && <AddDeviceForm onAdd={fetchData} />}
 
             <DeviceTable
               devices={devices}
               onDelete={handleDelete}
               onViewHistory={setSelectedDevice}
               loading={loading}
+              canDelete={canDeleteDevices}
             />
 
             <UptimeChart uptimeStats={uptimeStats} />
 
-            <SlaPanel uptimeStats={uptimeStats} onUpdate={handleUpdateDevice} />
+            <SlaPanel uptimeStats={uptimeStats} onUpdate={handleUpdateDevice} canEdit={canUpdateDevices} />
+
+            {canReadUsers && <UsersPanel canUpdate={canUpdateUsers} />}
           </>
         )}
       </main>
@@ -160,6 +212,7 @@ export default function App() {
           device={selectedDevice}
           onClose={() => setSelectedDevice(null)}
           onUpdate={handleUpdateDevice}
+          canEdit={canUpdateDevices}
         />
       )}
     </div>

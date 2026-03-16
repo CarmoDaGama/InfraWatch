@@ -52,6 +52,8 @@ docker compose up --build
 ### Backend
 
 ```bash
+nvm install 20
+nvm use 20
 cd backend
 npm install
 cp .env.example .env     # edit as needed
@@ -101,6 +103,26 @@ Copy `backend/.env.example` to `backend/.env` and adjust:
 
 ---
 
+## Access Control (RBAC)
+
+The backend uses JWT authentication with role-based access control.
+
+Roles:
+
+- `viewer`: read-only access to devices and metrics
+- `operator`: viewer permissions + create/update devices
+- `admin`: full access, including device deletion
+
+Bootstrap admin user via environment variables:
+
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD`
+- `ADMIN_ROLE` (`admin` by default)
+
+`POST /api/auth/login` returns the token plus user role and resolved permissions.
+
+---
+
 ## API Reference
 
 | Method | Endpoint | Description |
@@ -112,6 +134,8 @@ Copy `backend/.env.example` to `backend/.env` and adjust:
 | DELETE | `/api/devices/:id` | Remove a device |
 | GET | `/api/metrics` | Query metrics (`device_id`, `hours`, `limit`) |
 | GET | `/api/metrics/uptime` | Uptime % per device (`hours`) |
+| GET | `/api/users` | List users and roles (admin) |
+| PATCH | `/api/users/:id/role` | Update user role (`viewer`, `operator`, `admin`) (admin) |
 
 ---
 
@@ -120,6 +144,38 @@ Copy `backend/.env.example` to `backend/.env` and adjust:
 ```bash
 cd backend
 npm test
+```
+
+---
+
+## Troubleshooting
+
+### `npm install` fails on `better-sqlite3`
+
+The backend is pinned to Node 20. If you run `npm install` with a newer major version such as Node 25, `better-sqlite3` may not have a prebuilt binary for that ABI and npm falls back to compiling from source.
+
+On Linux that source build also requires a C toolchain (`cc`/`gcc`, `make`, Python). If `cc` is missing, the install fails with errors like `make: cc: No such file or directory`.
+
+Use the supported runtime:
+
+```bash
+nvm install 20
+nvm use 20
+cd backend
+npm install
+```
+
+If you intentionally want to build native modules from source on Linux, install the toolchain first:
+
+```bash
+sudo apt update
+sudo apt install build-essential python3 make
+```
+
+Docker avoids the host Node mismatch entirely:
+
+```bash
+docker compose up --build
 ```
 
 ---

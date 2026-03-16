@@ -4,11 +4,13 @@
   "app.up": "Up",
   "app.down": "Down",
   "app.networkError": "Cannot reach the InfraWatch API. Make sure the backend is running on port 3001.",
+  "app.forbidden": "You do not have permission to perform this action.",
   "app.apiError": "API error: {{message}}",
   "app.deleteError": "Failed to delete device: {{message}}",
 
   "header.title": "InfraWatch",
   "header.subtitle": "Real-time Infrastructure Monitoring",
+  "header.role": "Role",
   "header.signOut": "Sign Out",
 
   "login.title": "InfraWatch",
@@ -128,6 +130,14 @@
   "detail.noData": "No data for this time window.",
   "detail.downtimes": "Downtime incidents",
   "detail.checksDown": "{{count}} down checks",
+
+  "users.title": "Users and Roles",
+  "users.subtitle": "Role-based access management",
+  "users.email": "Email",
+  "users.role": "Role",
+  "users.createdAt": "Created At",
+  "users.loading": "Loading users…",
+  "users.empty": "No users found.",
 
   "status.up": "🟢 Up",
   "status.down": "🔴 Down",

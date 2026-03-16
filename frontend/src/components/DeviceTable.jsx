@@ -30,7 +30,7 @@ function SkeletonRow() {
   )
 }
 
-export default function DeviceTable({ devices, onDelete, onViewHistory, loading }) {
+export default function DeviceTable({ devices, onDelete, onViewHistory, loading, canDelete = false }) {
   const { t } = useTranslation()
 
   function formatLastChecked(timestamp) {
@@ -132,13 +132,15 @@ export default function DeviceTable({ devices, onDelete, onViewHistory, loading 
                       >
                         {t('deviceTable.history')}
                       </button>
-                      <button
-                        onClick={() => onDelete(device.id)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-sm font-medium transition-colors"
-                        title={t('deviceTable.deleteDevice')}
-                      >
-                        {t('deviceTable.remove')}
-                      </button>
+                      {canDelete && (
+                        <button
+                          onClick={() => onDelete(device.id)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-sm font-medium transition-colors"
+                          title={t('deviceTable.deleteDevice')}
+                        >
+                          {t('deviceTable.remove')}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

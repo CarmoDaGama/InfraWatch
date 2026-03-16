@@ -41,7 +41,7 @@ function SlaStatusBadge({ sla_met }) {
   )
 }
 
-export default function SlaPanel({ uptimeStats, onUpdate }) {
+export default function SlaPanel({ uptimeStats, onUpdate, canEdit = false }) {
   const { t } = useTranslation()
   const [editing, setEditing]     = useState(null)
   const [saving, setSaving]       = useState(false)
@@ -146,11 +146,13 @@ export default function SlaPanel({ uptimeStats, onUpdate }) {
                           </button>
                         </div>
                       </div>
-                    ) : (
+                    ) : canEdit ? (
                       <button onClick={() => startEdit(stat)}
                         className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded px-2 py-1 text-sm font-medium transition-colors">
                         {t('sla.edit')}
                       </button>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
                 </tr>

@@ -6,6 +6,7 @@ import db from './db.js';
 import authRouter from './routes/auth.js';
 import devicesRouter from './routes/devices.js';
 import metricsRouter from './routes/metrics.js';
+import usersRouter from './routes/users.js';
 import { verifyToken } from './middleware/auth.js';
 import { startMonitoring } from './monitor.js';
 import { sendNotification, sendAlert } from './notify.js';
@@ -29,6 +30,7 @@ app.use('/api/auth', authRouter(db));
 // Protected routes
 app.use('/api/devices', verifyToken, devicesRouter(db));
 app.use('/api/metrics', verifyToken, metricsRouter(db));
+app.use('/api/users', verifyToken, usersRouter(db));
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

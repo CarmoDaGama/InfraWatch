@@ -4,11 +4,13 @@
   "app.up": "Ativos",
   "app.down": "Inativos",
   "app.networkError": "Não é possível contactar a API do InfraWatch. Verifique se o backend está em execução na porta 3001.",
+  "app.forbidden": "Não tem permissões para executar esta ação.",
   "app.apiError": "Erro da API: {{message}}",
   "app.deleteError": "Falha ao remover dispositivo: {{message}}",
 
   "header.title": "InfraWatch",
   "header.subtitle": "Monitoramento de Infraestrutura em Tempo Real",
+  "header.role": "Perfil",
   "header.signOut": "Sair",
 
   "login.title": "InfraWatch",
@@ -128,6 +130,14 @@
   "detail.noData": "Sem dados para esta janela temporal.",
   "detail.downtimes": "Ocorrências de downtime",
   "detail.checksDown": "{{count}} checks em down",
+
+  "users.title": "Utilizadores e Perfis",
+  "users.subtitle": "Gestão de acesso por papel",
+  "users.email": "Email",
+  "users.role": "Perfil",
+  "users.createdAt": "Criado em",
+  "users.loading": "A carregar utilizadores…",
+  "users.empty": "Nenhum utilizador encontrado.",
 
   "status.up": "🟢 Ativo",
   "status.down": "🔴 Inativo",

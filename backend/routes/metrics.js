@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requirePermission } from '../middleware/rbac.js';
 
 // Returns a SQLite strftime expression that groups timestamps into buckets.
 // For short windows (<=2h) returns null → caller uses raw rows.
@@ -15,7 +16,7 @@ function bucketExpr(hours) {
 export default function metricsRouter(db) {
   const router = Router();
 
-  router.get('/', (req, res) => {
+  router.get('/', requirePermission('metrics:read'), (req, res) => {
     try {
       const hours = parseInt(req.query.hours ?? '24', 10);
       const limit = parseInt(req.query.limit ?? '200', 10);
@@ -45,7 +46,7 @@ export default function metricsRouter(db) {
   // Per-device time-series endpoint for the history drawer.
   // Returns bucketed data (5 min / 15 min / 1 h) for longer windows to keep
   // the payload small, plus aggregated stats for the period.
-  router.get('/device/:id', (req, res) => {
+  router.get('/device/:id', requirePermission('metrics:read'), (req, res) => {
     try {
       const hours = parseInt(req.query.hours ?? '24', 10);
       const timeFilter = `-${hours} hours`;
@@ -100,7 +101,7 @@ export default function metricsRouter(db) {
     }
   });
 
-  router.get('/uptime', (req, res) => {
+  router.get('/uptime', requirePermission('metrics:read'), (req, res) => {
     try {
       const hours = parseInt(req.query.hours ?? '24', 10);
 

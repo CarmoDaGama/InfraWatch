@@ -5,7 +5,7 @@ import metricsRouter from '../routes/metrics.js';
 
 const openDbs = [];
 
-function buildApp() {
+function buildApp(role = 'viewer') {
   const db = new Database(':memory:');
   openDbs.push(db);
   db.pragma('foreign_keys = ON');
@@ -47,6 +47,12 @@ function buildApp() {
 
   const app = express();
   app.use(express.json());
+  app.use((req, _res, next) => {
+    if (role) {
+      req.user = { id: 1, email: 'viewer@example.com', role };
+    }
+    next();
+  });
   app.use('/api/metrics', metricsRouter(db));
   return { app, db, deviceId };
 }
@@ -85,5 +91,11 @@ describe('Metrics API', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body[0]).toHaveProperty('uptime_pct');
+  });
+
+  test('GET /api/metrics returns 401 without authenticated role', async () => {
+    const { app } = buildApp(null);
+    const res = await request(app).get('/api/metrics');
+    expect(res.status).toBe(401);
   });
 });

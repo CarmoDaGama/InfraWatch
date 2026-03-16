@@ -105,7 +105,7 @@ function SlaStatusBadge({ sla_met }) {
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-export default function DeviceDetail({ device, onClose, onUpdate }) {
+export default function DeviceDetail({ device, onClose, onUpdate, canEdit = false }) {
   // Metrics state
   const [hours,   setHours]   = useState(24)
   const [data,    setData]    = useState(null)
@@ -393,12 +393,16 @@ export default function DeviceDetail({ device, onClose, onUpdate }) {
                 </div>
                 <div className="flex items-center justify-between">
                   <SlaStatusBadge sla_met={sla_met} />
-                  <button
-                    onClick={() => { setEditing(true); setSaveError(null) }}
-                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    {t('detail.editSla')}
-                  </button>
+                  {canEdit ? (
+                    <button
+                      onClick={() => { setEditing(true); setSaveError(null) }}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      {t('detail.editSla')}
+                    </button>
+                  ) : (
+                    <span className="text-xs text-gray-400">—</span>
+                  )}
                 </div>
               </>
             ) : (

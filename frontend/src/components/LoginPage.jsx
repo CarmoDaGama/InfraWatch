@@ -27,7 +27,7 @@ export default function LoginPage({ onLogin }) {
     setSubmitting(true)
     try {
       const res = await login({ email: email.trim(), password })
-      onLogin(res.data.token)
+      onLogin(res.data)
     } catch (err) {
       setErrors({
         submit: err.response?.data?.error || t('login.invalidCredentials'),

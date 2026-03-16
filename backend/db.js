@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { normalizeRole } from './middleware/rbac.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -42,6 +43,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     email         TEXT    NOT NULL UNIQUE,
+    role          TEXT    NOT NULL DEFAULT 'viewer',
     password_hash TEXT    NOT NULL,
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -66,17 +68,25 @@ if (!hasColumn(db, 'devices', 'criticality'))
   db.exec("ALTER TABLE devices ADD COLUMN criticality TEXT DEFAULT 'medium'");
 if (!hasColumn(db, 'devices', 'check_interval_seconds'))
   db.exec('ALTER TABLE devices ADD COLUMN check_interval_seconds INTEGER DEFAULT 60');
+if (!hasColumn(db, 'users', 'role'))
+  db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'viewer'");
 
 db.exec('UPDATE devices SET check_interval_seconds = 60 WHERE check_interval_seconds IS NULL OR check_interval_seconds < 1');
+db.exec("UPDATE users SET role = 'viewer' WHERE role IS NULL OR trim(role) = ''");
+db.exec("UPDATE users SET role = 'viewer' WHERE lower(role) NOT IN ('viewer', 'operator', 'admin')");
 
 // Seed admin user on startup if credentials are provided and user doesn't exist yet.
-const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
+const { ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_ROLE } = process.env;
+const seedRole = normalizeRole(ADMIN_ROLE) ?? 'admin';
 if (ADMIN_EMAIL && ADMIN_PASSWORD) {
-  const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(ADMIN_EMAIL);
+  const exists = db.prepare('SELECT id, role FROM users WHERE email = ?').get(ADMIN_EMAIL);
   if (!exists) {
     const hash = bcrypt.hashSync(ADMIN_PASSWORD, 10);
-    db.prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)').run(ADMIN_EMAIL, hash);
-    console.log(`Admin user seeded: ${ADMIN_EMAIL}`);
+    db.prepare('INSERT INTO users (email, role, password_hash) VALUES (?, ?, ?)').run(ADMIN_EMAIL, seedRole, hash);
+    console.log(`Admin user seeded: ${ADMIN_EMAIL} (${seedRole})`);
+  } else if (normalizeRole(exists.role) !== seedRole) {
+    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(seedRole, exists.id);
+    console.log(`Admin role updated: ${ADMIN_EMAIL} (${seedRole})`);
   }
 }
 

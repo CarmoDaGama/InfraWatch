@@ -5,7 +5,7 @@ import devicesRouter from '../routes/devices.js';
 
 const openDbs = [];
 
-function buildApp() {
+function buildApp(role = 'admin') {
   const db = new Database(':memory:');
   openDbs.push(db);
   db.pragma('foreign_keys = ON');
@@ -34,6 +34,10 @@ function buildApp() {
   `);
   const app = express();
   app.use(express.json());
+  app.use((req, _res, next) => {
+    req.user = { id: 1, email: 'test@example.com', role };
+    next();
+  });
   app.use('/api/devices', devicesRouter(db));
   return { app, db };
 }
@@ -195,5 +199,26 @@ describe('Devices API', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.check_interval_seconds).toBe(300);
+  });
+
+  test('DELETE /api/devices/:id returns 403 for operator role', async () => {
+    const { app, db } = buildApp('operator');
+    const result = db
+      .prepare('INSERT INTO devices (name, url) VALUES (?, ?)')
+      .run('No Delete', 'http://nodelete.example.com');
+
+    const res = await request(app).delete(`/api/devices/${result.lastInsertRowid}`);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/Forbidden/);
+  });
+
+  test('POST /api/devices returns 403 for viewer role', async () => {
+    const { app } = buildApp('viewer');
+    const res = await request(app)
+      .post('/api/devices')
+      .send({ name: 'Read Only', url: 'http://readonly.example.com' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/Forbidden/);
   });
 });
