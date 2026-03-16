@@ -5,6 +5,11 @@ import snmp from 'net-snmp';
 let intervalId = null;
 const DEFAULT_FALLBACK_INTERVAL_MS = 5000;
 
+interface CheckResult {
+  status: 'up' | 'down';
+  response_time: number | null;
+}
+
 function resolveDeviceIntervalMs(device, fallbackMs) {
   const intervalSeconds = Number(device?.check_interval_seconds);
   if (Number.isInteger(intervalSeconds) && intervalSeconds > 0) {
@@ -15,7 +20,7 @@ function resolveDeviceIntervalMs(device, fallbackMs) {
 
 // ── Individual checkers ───────────────────────────────────────────────────────
 
-export async function checkHttp(device) {
+export async function checkHttp(device): Promise<CheckResult> {
   const start = Date.now();
   try {
     await axios.get(device.url, { timeout: 10000 });
@@ -25,7 +30,7 @@ export async function checkHttp(device) {
   }
 }
 
-export async function checkPing(device) {
+export async function checkPing(device): Promise<CheckResult> {
   const start = Date.now();
   try {
     const result = await ping.promise.probe(device.url, { timeout: 5, min_reply: 1 });
@@ -42,7 +47,7 @@ export async function checkPing(device) {
   }
 }
 
-export function checkSnmp(device) {
+export function checkSnmp(device): Promise<CheckResult> {
   return new Promise((resolve) => {
     const start     = Date.now();
     const host      = device.url;
@@ -77,7 +82,7 @@ export function checkSnmp(device) {
 
 // ── Dispatcher ────────────────────────────────────────────────────────────────
 
-export async function checkDevice(device) {
+export async function checkDevice(device): Promise<CheckResult> {
   switch (device.type) {
     case 'ping': return checkPing(device);
     case 'snmp': return checkSnmp(device);

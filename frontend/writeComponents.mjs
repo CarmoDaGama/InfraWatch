@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'fs';
 
-let c = readFileSync('src/components/MetricsDrawer.jsx', 'utf8');
+let c = readFileSync('src/components/MetricsDrawer.tsx', 'utf8');
 const R = c.includes('\r\n') ? '\r\n' : '\n';
 const nl = R;
 
@@ -91,7 +91,7 @@ replacements.forEach(([from, to]) => {
   }
 });
 
-writeFileSync('src/components/MetricsDrawer.jsx', c);
+writeFileSync('src/components/MetricsDrawer.tsx', c);
 
 // Verify
 const hardcoded = [
@@ -106,7 +106,7 @@ const hardcoded = [
   'Estatísticas ·'
 ];
 const still = hardcoded.filter(s => c.includes(s));
-console.log('MetricsDrawer.jsx fix complete!');
+console.log('MetricsDrawer.tsx fix complete!');
 console.log('Remaining hardcoded:', still.length ? still : 'NONE');
 console.log('Has t():', c.includes("useTranslation()"));
 console.log('Has formatAge with t():', c.includes("t('deviceTable.justNow')"));

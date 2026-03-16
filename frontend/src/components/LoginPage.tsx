@@ -1,16 +1,22 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { login } from '../api.js'
+import { login } from '../api'
+
+type LoginErrors = {
+  email?: string
+  password?: string
+  submit?: string
+}
 
 export default function LoginPage({ onLogin }) {
   const { t } = useTranslation()
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [errors, setErrors]     = useState({})
+  const [errors, setErrors]     = useState<LoginErrors>({})
   const [submitting, setSubmitting] = useState(false)
 
   function validate() {
-    const errs = {}
+    const errs: LoginErrors = {}
     if (!email.trim())    errs.email    = t('login.emailRequired')
     if (!password)        errs.password = t('login.passwordRequired')
     return errs

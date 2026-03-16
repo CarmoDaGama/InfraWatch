@@ -1,14 +1,14 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import Header from './components/Header.jsx'
-import DeviceTable from './components/DeviceTable.jsx'
-import AddDeviceForm from './components/AddDeviceForm.jsx'
-import UptimeChart from './components/UptimeChart.jsx'
-import SlaPanel from './components/SlaPanel.jsx'
-import MetricsDrawer from './components/MetricsDrawer.jsx'
-import LoginPage from './components/LoginPage.jsx'
-import UsersPanel from './components/UsersPanel.jsx'
-import { getDevices, deleteDevice, updateDevice, getUptimeStats } from './api.js'
+import Header from './components/Header'
+import DeviceTable from './components/DeviceTable'
+import AddDeviceForm from './components/AddDeviceForm'
+import UptimeChart from './components/UptimeChart'
+import SlaPanel from './components/SlaPanel'
+import MetricsDrawer from './components/MetricsDrawer'
+import LoginPage from './components/LoginPage'
+import UsersPanel from './components/UsersPanel'
+import { getDevices, deleteDevice, updateDevice, getUptimeStats } from './api'
 
 const REFRESH_INTERVAL = 5000
 

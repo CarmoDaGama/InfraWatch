@@ -3,19 +3,35 @@
   "version": "1.0.0",
   "description": "InfraWatch MVP backend",
   "type": "module",
-  "main": "server.js",
+  "main": "dist/server.js",
   "engines": {
     "node": "20.x",
     "npm": ">=10"
   },
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsx watch server.ts",
     "test": "node --experimental-vm-modules node_modules/.bin/jest --runInBand"
   },
   "jest": {
     "testEnvironment": "node",
-    "transform": {}
+    "preset": "ts-jest/presets/default-esm",
+    "extensionsToTreatAsEsm": [
+      ".ts"
+    ],
+    "transform": {
+      "^.+\\.ts$": [
+        "ts-jest",
+        {
+          "useESM": true,
+          "tsconfig": "./tsconfig.json"
+        }
+      ]
+    },
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1"
+    }
   },
   "dependencies": {
     "axios": "^1.7.3",
@@ -32,8 +48,16 @@
     "ping": "^0.4.4"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.18",
+    "@types/express": "^4.17.23",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20.19.22",
+    "@types/node-telegram-bot-api": "^0.64.8",
+    "@types/nodemailer": "^7.0.3",
     "jest": "^29.7.0",
-    "nodemon": "^3.1.4",
-    "supertest": "^7.0.0"
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.4.1",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
   }
 }

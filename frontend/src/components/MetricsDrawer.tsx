@@ -4,8 +4,9 @@
  *
  * File kept as MetricsDrawer.jsx for backwards compatibility; default export is DeviceDetail.
  */
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { ChartOptions } from 'chart.js'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -16,8 +17,8 @@ import {
   Tooltip,
 } from 'chart.js'
 import { Line } from 'react-chartjs-2'
-import { getDeviceMetrics } from '../api.js'
-import StatusBadge from './StatusBadge.jsx'
+import { getDeviceMetrics } from '../api'
+import StatusBadge from './StatusBadge'
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Title, Tooltip)
 
@@ -69,7 +70,7 @@ function rt(val) {
 
 // ─── sub-components ──────────────────────────────────────────────────────────
 
-function Card({ title, children, className = '' }) {
+function Card({ title, children, className = '' }: { title?: string; children: ReactNode; className?: string }) {
   return (
     <div className={`bg-white rounded-xl shadow p-5 ${className}`}>
       {title && <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">{title}</h3>}
@@ -241,9 +242,9 @@ export default function DeviceDetail({ device, onClose, onUpdate, canEdit = fals
     }],
   }
 
-  const chartOptions = {
+  const chartOptions: ChartOptions<'line'> = {
     responsive: true,
-    animation: false,
+    animation: false as const,
     plugins: {
       legend: { display: false },
       tooltip: {

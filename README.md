@@ -185,26 +185,26 @@ docker compose up --build
 ```
 InfraWatch/
 ├── backend/
-│   ├── server.js          # Express app + startup
-│   ├── db.js              # SQLite schema & connection
-│   ├── monitor.js         # HTTP polling service
-│   ├── notify.js          # Email + Telegram alerts
+│   ├── server.ts          # Express app + startup
+│   ├── db.ts              # SQLite schema & connection
+│   ├── monitor.ts         # HTTP polling service
+│   ├── notify.ts          # Email + Telegram alerts
 │   ├── routes/
-│   │   ├── devices.js     # Device CRUD endpoints
-│   │   └── metrics.js     # Metrics query endpoints
+│   │   ├── devices.ts     # Device CRUD endpoints
+│   │   └── metrics.ts     # Metrics query endpoints
 │   ├── tests/             # Jest + supertest test suite
 │   ├── Dockerfile
 │   └── .env.example
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx        # Root component (auto-refresh)
-│   │   ├── api.js         # Axios API helpers
+│   │   ├── App.tsx        # Root component (auto-refresh)
+│   │   ├── api.ts         # Axios API helpers
 │   │   └── components/
-│   │       ├── Header.jsx
-│   │       ├── DeviceTable.jsx
-│   │       ├── AddDeviceForm.jsx
-│   │       ├── UptimeChart.jsx
-│   │       └── StatusBadge.jsx
+│   │       ├── Header.tsx
+│   │       ├── DeviceTable.tsx
+│   │       ├── AddDeviceForm.tsx
+│   │       ├── UptimeChart.tsx
+│   │       └── StatusBadge.tsx
 │   ├── Dockerfile
 │   └── nginx.conf
 └── docker-compose.yml

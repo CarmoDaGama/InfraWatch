@@ -29,7 +29,7 @@ function buildTitle(device, newStatus) {
 }
 
 function getNotificationData(device, newStatus, previousStatus) {
-  const data = {
+  const data: Record<string, string> = {
     device_name: String(device.name ?? ''),
     device_url: String(device.url ?? ''),
     new_status: String(newStatus ?? ''),
@@ -164,7 +164,7 @@ async function sendFcmPushNotification(title, message, data) {
   const payload = {
     notification: { title, body: message },
     data,
-  };
+  } as Record<string, unknown>;
 
   if (topicValue) {
     payload.to = topicValue.startsWith('/topics/')

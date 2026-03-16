@@ -1,8 +1,16 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { createDevice } from '../api.js'
+import { createDevice } from '../api'
 
 const INPUT_CLASS = 'w-full rounded-lg border px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+
+type FormErrors = {
+  name?: string
+  url?: string
+  snmpPort?: string
+  checkInterval?: string
+  submit?: string
+}
 
 export default function AddDeviceForm({ onAdd }) {
   const { t } = useTranslation()
@@ -13,7 +21,7 @@ export default function AddDeviceForm({ onAdd }) {
   const [snmpOid,       setSnmpOid]       = useState('1.3.6.1.2.1.1.1.0')
   const [snmpPort,      setSnmpPort]      = useState('161')
   const [checkIntervalSeconds, setCheckIntervalSeconds] = useState('60')
-  const [errors,        setErrors]        = useState({})
+  const [errors,        setErrors]        = useState<FormErrors>({})
   const [submitting,    setSubmitting]    = useState(false)
 
   const TYPE_OPTIONS = [
@@ -23,7 +31,7 @@ export default function AddDeviceForm({ onAdd }) {
   ]
 
   function validate() {
-    const errs = {}
+    const errs: FormErrors = {}
     if (!name.trim()) errs.name = t('addDevice.nameRequired')
     const trimmedUrl = url.trim()
     if (!trimmedUrl) {

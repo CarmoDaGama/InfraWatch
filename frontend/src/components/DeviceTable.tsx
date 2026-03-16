@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import StatusBadge from './StatusBadge.jsx'
+import StatusBadge from './StatusBadge'
 
 const TYPE_BADGE = {
   http: 'bg-blue-100 text-blue-700',

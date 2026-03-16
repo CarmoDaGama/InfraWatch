@@ -13,14 +13,24 @@ function bucketExpr(hours) {
   return "strftime('%Y-%m-%dT%H:00:00.000Z', checked_at)";
 }
 
+function getQueryValue(value, fallback) {
+  if (Array.isArray(value)) {
+    return value[0] ?? fallback;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return fallback;
+}
+
 export default function metricsRouter(db) {
   const router = Router();
 
   router.get('/', requirePermission('metrics:read'), (req, res) => {
     try {
-      const hours = parseInt(req.query.hours ?? '24', 10);
-      const limit = parseInt(req.query.limit ?? '200', 10);
-      const deviceId = req.query.device_id;
+      const hours = parseInt(getQueryValue(req.query.hours, '24'), 10);
+      const limit = parseInt(getQueryValue(req.query.limit, '200'), 10);
+      const deviceId = getQueryValue(req.query.device_id, '');
 
       let query = `SELECT m.*, d.name AS device_name, d.url AS device_url
                    FROM metrics m
@@ -34,7 +44,7 @@ export default function metricsRouter(db) {
       }
 
       query += ' ORDER BY m.checked_at DESC LIMIT ?';
-      params.push(limit);
+      params.push(String(limit));
 
       const metrics = db.prepare(query).all(...params);
       res.json(metrics);
@@ -48,7 +58,7 @@ export default function metricsRouter(db) {
   // the payload small, plus aggregated stats for the period.
   router.get('/device/:id', requirePermission('metrics:read'), (req, res) => {
     try {
-      const hours = parseInt(req.query.hours ?? '24', 10);
+      const hours = parseInt(getQueryValue(req.query.hours, '24'), 10);
       const timeFilter = `-${hours} hours`;
       const expr = bucketExpr(hours);
 
@@ -103,7 +113,7 @@ export default function metricsRouter(db) {
 
   router.get('/uptime', requirePermission('metrics:read'), (req, res) => {
     try {
-      const hours = parseInt(req.query.hours ?? '24', 10);
+      const hours = parseInt(getQueryValue(req.query.hours, '24'), 10);
 
       const rows = db
         .prepare(

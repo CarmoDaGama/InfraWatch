@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getUsers, updateUserRole } from '../api.js'
+import { getUsers, updateUserRole } from '../api'
 
 const ROLES = ['viewer', 'operator', 'admin']
 
