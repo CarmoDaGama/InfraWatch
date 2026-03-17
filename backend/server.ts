@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
+import { rateLimit } from 'express-rate-limit';
 import db, { ensureDbReady } from './db.js';
 import authRouter from './routes/auth.js';
 import devicesRouter from './routes/devices.js';
