@@ -1,6 +1,11 @@
 import axios from 'axios';
 import ping from 'ping';
 import snmp from 'net-snmp';
+import { checkAndRecordSLAViolation } from './sla.js';
+import {
+  getOrCreateCircuitBreaker,
+  executeWithRetry,
+} from './circuit-breaker.js';
 
 let intervalId = null;
 const DEFAULT_FALLBACK_INTERVAL_MS = 5000;
@@ -90,9 +95,58 @@ export async function checkDevice(device): Promise<CheckResult> {
   }
 }
 
+// ── Circuit Breaker Integration ────────────────────────────────────────────────
+
+export async function checkDeviceWithCircuitBreaker(
+  device,
+): Promise<CheckResult> {
+  const breaker = getOrCreateCircuitBreaker(device.id, {
+    failureThreshold: 5,
+    resetTimeoutMs: 60 * 1000, // 1 minute
+    backoffMultiplier: 1.5,
+    maxBackoffMs: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Check circuit state
+  if (!breaker.isRequestAllowed()) {
+    const timeUntilRetry = breaker.getTimeUntilRetry();
+    console.log(
+      `[CircuitBreaker] Device ${device.id} is OPEN, ` +
+      `skipping check (retry in ${(timeUntilRetry / 1000).toFixed(0)}s)`,
+    );
+    return {
+      status: 'down',
+      response_time: null,
+    };
+  }
+
+  try {
+    // Execute check with exponential backoff retry
+    const result = await executeWithRetry(
+      () => checkDevice(device),
+      `Device check ${device.id} (${device.name})`,
+      {
+        maxRetries: 2,
+        initialDelayMs: 500,
+        maxDelayMs: 3000,
+        backoffMultiplier: 2,
+      },
+    );
+
+    breaker.recordSuccess();
+    return result;
+  } catch (error) {
+    breaker.recordFailure();
+    console.error(
+      `[Monitor] Device ${device.id} check failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return { status: 'down', response_time: null };
+  }
+}
+
 // ── Poll loop ─────────────────────────────────────────────────────────────────
 
-export function startMonitoring(db, notifyFn) {
+export function startMonitoring(db, notifyFn, slaAlertFn = null) {
   const configuredFallback = parseInt(
     process.env.MONITOR_INTERVAL ?? String(DEFAULT_FALLBACK_INTERVAL_MS),
     10
@@ -149,7 +203,7 @@ export function startMonitoring(db, notifyFn) {
       const results = await Promise.all(
         dueDevices.map(async (device) => {
           try {
-            const { status, response_time } = await checkDevice(device);
+            const { status, response_time } = await checkDeviceWithCircuitBreaker(device);
             return { device, status, response_time };
           } catch {
             return { device, status: 'down', response_time: null };
@@ -176,6 +230,13 @@ export function startMonitoring(db, notifyFn) {
           const previousStatus = previousMetric?.status ?? null;
           if (previousStatus !== status) {
             void notifyFn(device, status, previousStatus);
+          }
+
+          // ── Check SLA Violation after metric is recorded ──
+          if (slaAlertFn && device.slaTarget && device.slaTarget < 100) {
+            void checkAndRecordSLAViolation(db, device, slaAlertFn).catch((err) => {
+              console.error(`[Monitor] SLA check error for device ${device.id}:`, err);
+            });
           }
         } finally {
           inFlight.delete(device.id);

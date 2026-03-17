@@ -1,21 +1,9 @@
-// PostgreSQL + TimescaleDB Schema
-// Use this schema when migrating from SQLite to PostgreSQL
-// 
-// Steps:
-// 1. Ensure PostgreSQL + TimescaleDB is running
-// 2. Update backend/.env: DATABASE_URL="postgresql://user:pass@localhost:5432/infrawatch"
-// 3. Replace schema.prisma content with this file
-// 4. Run: npx prisma migrate dev --name initial
-//
-// For TimescaleDB optimization, run after migration:
-// npm run db:setup-timescale
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -41,21 +29,18 @@ model Device {
 model Metric {
   id           Int      @id @default(autoincrement())
   deviceId     Int      @map("device_id")
-  status       String   @db.VarChar(10)
+  status       String
   responseTime Float?   @map("response_time")
   checkedAt    DateTime @default(now()) @map("checked_at")
   device       Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
-  @@index([deviceId])
-  @@index([checkedAt])
-  @@index([deviceId, checkedAt(sort: Desc)])
   @@map("metrics")
 }
 
 model User {
   id           Int      @id @default(autoincrement())
   email        String   @unique
-  role         String   @default("viewer") @db.VarChar(50)
+  role         String   @default("viewer")
   passwordHash String   @map("password_hash")
   createdAt    DateTime @default(now()) @map("created_at")
 
@@ -65,11 +50,11 @@ model User {
 model SLAViolation {
   id              Int      @id @default(autoincrement())
   deviceId        Int      @map("device_id")
-  violationType   String   @map("violation_type") @db.VarChar(50)
-  actualUptime    Float    @map("actual_uptime")
-  slaTarget       Float    @map("sla_target")
-  periodStartAt   DateTime @map("period_start_at")
-  periodEndAt     DateTime @map("period_end_at")
+  violationType   String   @map("violation_type") // 'threshold' = uptime < target
+  actualUptime    Float    @map("actual_uptime") // Percentage (0-100)
+  slaTarget       Float    @map("sla_target") // Percentage (0-100)
+  periodStartAt   DateTime @map("period_start_at") // Start of period checked
+  periodEndAt     DateTime @map("period_end_at") // End of period checked
   alertSent       Boolean  @default(false) @map("alert_sent")
   createdAt       DateTime @default(now()) @map("created_at")
   device          Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)

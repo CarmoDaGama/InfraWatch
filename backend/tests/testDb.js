@@ -1,7 +1,20 @@
+import crypto from 'crypto';
 import fs from 'fs/promises';
-import os from 'os';
 import path from 'path';
+import { PrismaClient } from '@prisma/client';
 import { createDbClient, ensureDbReady, disconnectDb } from '../db.js';
+
+// Base PostgreSQL URL without a specific database
+function getBaseUrl() {
+  const url = process.env.DATABASE_URL || 'postgresql://infrawatch:infrawatch@localhost:5433/infrawatch?schema=public';
+  // Strip the database name so we can connect to 'postgres' admin db
+  return url.replace(/\/[^/?]+(\?|$)/, '/postgres$1');
+}
+
+function getTestDbUrl(dbName) {
+  const url = process.env.DATABASE_URL || 'postgresql://infrawatch:infrawatch@localhost:5433/infrawatch?schema=public';
+  return url.replace(/\/[^/?]+(\?|$)/, `/${dbName}$1`);
+}
 
 async function applyMigrations(db) {
   const migrationsDir = path.join(process.cwd(), 'prisma', 'migrations');
@@ -29,22 +42,29 @@ async function applyMigrations(db) {
 const openDatabases = [];
 
 export async function createTestDb() {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'infrawatch-prisma-'));
-  const databaseUrl = `file:${path.join(directory, 'test.db')}`;
+  const dbName = `iw_test_${crypto.randomUUID().replace(/-/g, '')}`;
+
+  // Create the test database using the admin postgres db
+  const adminClient = new PrismaClient({ datasources: { db: { url: getBaseUrl() } } });
+  await adminClient.$connect();
+  await adminClient.$executeRawUnsafe(`CREATE DATABASE "${dbName}"`);
+  await adminClient.$disconnect();
+
+  const databaseUrl = getTestDbUrl(dbName);
   const db = createDbClient(databaseUrl);
 
   await db.$connect();
   await applyMigrations(db);
   await ensureDbReady(db);
-  openDatabases.push({ db, directory });
+  openDatabases.push({ db, dbName });
 
   return db;
 }
 
 export async function cleanupTestDbs() {
-  while (openDatabases.length > 0) {
-    const { db, directory } = openDatabases.pop();
+  const toCleanup = openDatabases.splice(0);
 
+  for (const { db, dbName } of toCleanup) {
     try {
       await disconnectDb(db);
     } catch {
@@ -52,9 +72,12 @@ export async function cleanupTestDbs() {
     }
 
     try {
-      await fs.rm(directory, { recursive: true, force: true });
+      const adminClient = new PrismaClient({ datasources: { db: { url: getBaseUrl() } } });
+      await adminClient.$connect();
+      await adminClient.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${dbName}"`);
+      await adminClient.$disconnect();
     } catch {
-      // ignore temp cleanup errors during test teardown
+      // ignore cleanup errors
     }
   }
 }

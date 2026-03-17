@@ -16,7 +16,9 @@
     "dev": "tsx watch server.ts",
     "test": "node --experimental-vm-modules node_modules/.bin/jest --runInBand",
     "db:migrate:dev": "prisma migrate dev",
-    "db:migrate:deploy": "prisma migrate deploy"
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate-sqlite-to-pg": "node scripts/migrate-sqlite-to-postgres.mjs",
+    "db:setup-timescale": "echo 'Run: psql -U infrawatch -d infrawatch -f scripts/timescaledb-setup.sql'"
   },
   "jest": {
     "testEnvironment": "node",

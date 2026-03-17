@@ -7,9 +7,10 @@ import authRouter from './routes/auth.js';
 import devicesRouter from './routes/devices.js';
 import metricsRouter from './routes/metrics.js';
 import usersRouter from './routes/users.js';
+import slaRouter from './routes/sla.js';
 import { verifyToken } from './middleware/auth.js';
 import { startMonitoring } from './monitor.js';
-import { sendNotification, sendAlert } from './notify.js';
+import { sendNotification, sendAlert, sendSLAViolationAlert } from './notify.js';
 
 await ensureDbReady();
 
@@ -32,6 +33,7 @@ app.use('/api/auth', authRouter(db));
 // Protected routes
 app.use('/api/devices', verifyToken, devicesRouter(db));
 app.use('/api/metrics', verifyToken, metricsRouter(db));
+app.use('/api/sla', verifyToken, slaRouter(db));
 app.use('/api/users', verifyToken, usersRouter(db));
 
 app.get('/api/health', (_req, res) => {
@@ -42,7 +44,7 @@ if (process.env.NODE_ENV !== 'test') {
   const PORT = parseInt(process.env.PORT ?? '3001', 10);
   app.listen(PORT, () => {
     console.log(`InfraWatch backend listening on port ${PORT}`);
-    startMonitoring(db, sendNotification);
+    startMonitoring(db, sendNotification, sendSLAViolationAlert);
   });
 
   process.on('uncaughtException', (err) => {

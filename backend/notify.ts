@@ -253,3 +253,33 @@ export async function sendNotification(device, newStatus, previousStatus) {
     sendPushNotification(device, newStatus, previousStatus, subject, message),
   ]);
 }
+
+export async function sendSLAViolationAlert(device, message: string) {
+  const subject = `InfraWatch SLA Violation: ${device.name}`;
+  
+  console.log(`[InfraWatch] SLA Violation: ${message}`);
+
+  // Apply criticality-based escalation
+  const isCritical = device.criticality === 'critical';
+  
+  // Send all channels for critical devices, subset for others
+  if (isCritical) {
+    // Critical: send all channels with higher priority
+    await Promise.allSettled([
+      sendEmailNotification(subject, message),
+      sendTelegramNotification(`🚨 CRITICAL SLA VIOLATION\n\n${message}`),
+      sendSmsNotification(subject, `[CRITICAL] ${message}`),
+      sendFcmPushNotification('⚠️ SLA Violation', message, {
+        device_name: device.name,
+        device_id: String(device.id),
+        severity: 'critical',
+      }),
+    ]);
+  } else {
+    // Non-critical: email and Telegram
+    await Promise.allSettled([
+      sendEmailNotification(subject, message),
+      sendTelegramNotification(`⚠️ SLA Violation\n\n${message}`),
+    ]);
+  }
+}

@@ -12,13 +12,16 @@ function resolveDatabaseUrl(databaseUrl?: string) {
 }
 
 export function createDbClient(databaseUrl?: string) {
-  return new PrismaClient({
+  const resolvedUrl = resolveDatabaseUrl(databaseUrl);
+  const client = new PrismaClient({
     datasources: {
       db: {
-        url: resolveDatabaseUrl(databaseUrl),
+        url: resolvedUrl,
       },
     },
   });
+  (client as any).__resolvedUrl = resolvedUrl;
+  return client;
 }
 
 if (!process.env.DATABASE_URL) {
@@ -68,7 +71,10 @@ async function seedAdminUser(client: PrismaClient) {
 
 async function initializeDatabase(client: PrismaClient) {
   await client.$connect();
-  await client.$executeRawUnsafe('PRAGMA foreign_keys = ON');
+  const url = (client as any).__resolvedUrl as string | undefined;
+  if (url?.startsWith('file:')) {
+    await client.$executeRawUnsafe('PRAGMA foreign_keys = ON');
+  }
   await seedAdminUser(client);
 }
 
