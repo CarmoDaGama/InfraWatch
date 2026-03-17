@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { HiSignal } from 'react-icons/hi2'
 
 const LANGS = [
   { code: 'pt', label: 'PT' },
@@ -39,7 +40,9 @@ export default function Header({ onLogout, role }) {
     <header className="px-4 sm:px-6 lg:px-8 pt-4">
       <div className="glass-card rounded-2xl px-5 py-4 flex items-center justify-between border-slate-100/80">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="text-2xl">🔴</span>
+          <span className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center">
+            <HiSignal className="w-6 h-6" />
+          </span>
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">{t('header.title')}</h1>
             <p className="text-slate-600 text-xs sm:text-sm mt-0.5">{t('header.subtitle')}</p>

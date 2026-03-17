@@ -39,7 +39,7 @@
   "deviceTable.secondsAgo": "{{diff}}s ago",
   "deviceTable.minutesAgo": "{{diff}}m ago",
   "deviceTable.history": "History",
-  "deviceTable.remove": "✕ Remove",
+  "deviceTable.remove": "Remove",
   "deviceTable.viewHistory": "View metrics history",
   "deviceTable.deleteDevice": "Delete device",
 
@@ -77,8 +77,8 @@
   "sla.state": "State",
   "sla.actions": "Actions",
   "sla.noData": "No data",
-  "sla.ok": "✓ Met",
-  "sla.violated": "✗ Violated",
+  "sla.ok": "Met",
+  "sla.violated": "Violated",
   "sla.critLow": "Low",
   "sla.critMedium": "Medium",
   "sla.critHigh": "High",
@@ -154,7 +154,7 @@
   "integrations.message": "Message",
   "integrations.actions": "Actions",
 
-  "status.up": "🟢 Up",
-  "status.down": "🔴 Down",
-  "status.unknown": "⚪ Unknown"
+  "status.up": "Up",
+  "status.down": "Down",
+  "status.unknown": "Unknown"
 }

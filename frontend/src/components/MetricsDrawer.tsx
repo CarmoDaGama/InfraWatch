@@ -17,6 +17,7 @@ import {
   Tooltip,
 } from 'chart.js'
 import { Line } from 'react-chartjs-2'
+import { HiCheckCircle, HiExclamationCircle, HiMinusCircle } from 'react-icons/hi2'
 import { getDeviceMetrics } from '../api'
 import StatusBadge from './StatusBadge'
 
@@ -253,7 +254,7 @@ export default function DeviceDetail({ device, onClose, onUpdate, canEdit = fals
           label:       (ctx)   => {
             const m = metrics[ctx.dataIndex]
             if (!m) return ''
-            return m.status === 'down' ? ' ✗ Down' : ` ${ctx.parsed.y} ms (up)`
+            return m.status === 'down' ? ' Down' : ` ${ctx.parsed.y} ms (up)`
           },
           afterLabel:  (ctx)   => {
             const m = metrics[ctx.dataIndex]
@@ -337,12 +338,18 @@ export default function DeviceDetail({ device, onClose, onUpdate, canEdit = fals
           <Card title={t('detail.currentState')}>
             <div className="flex items-center gap-4">
               {/* Big status circle */}
-              <span className={`shrink-0 w-14 h-14 rounded-full flex items-center justify-center text-2xl ${
+              <span className={`shrink-0 w-14 h-14 rounded-full flex items-center justify-center ${
                 device.status === 'up'   ? 'bg-green-100' :
                 device.status === 'down' ? 'bg-red-100 animate-pulse' :
                 'bg-gray-100'
               }`}>
-                {device.status === 'up' ? '🟢' : device.status === 'down' ? '🔴' : '⚪'}
+                {device.status === 'up' ? (
+                  <HiCheckCircle className="w-8 h-8 text-green-600" />
+                ) : device.status === 'down' ? (
+                  <HiExclamationCircle className="w-8 h-8 text-red-600" />
+                ) : (
+                  <HiMinusCircle className="w-8 h-8 text-gray-500" />
+                )}
               </span>
               <div>
                 <p className={`text-lg font-bold ${

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { HiExclamationTriangle, HiPlus } from 'react-icons/hi2'
 import DeviceTable from './DeviceTable'
 import AddDeviceForm from './AddDeviceForm'
 import MetricsDrawer from './MetricsDrawer'
@@ -47,7 +48,7 @@ export default function DevicesPage({ devices, loading, onRefresh, canCreate, ca
     <main className="page-frame">
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 flex items-start gap-3">
-          <span className="text-red-500 mt-0.5">⚠️</span>
+          <HiExclamationTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
           <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
@@ -63,9 +64,7 @@ export default function DevicesPage({ devices, loading, onRefresh, canCreate, ca
             onClick={() => setModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-xl shadow transition-colors"
           >
-            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
+            <HiPlus className="w-4 h-4" />
             {t('addDevice.add')}
           </button>
         )}

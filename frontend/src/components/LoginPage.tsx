@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { HiSignal } from 'react-icons/hi2'
 import { login } from '../api'
 
 type LoginErrors = {
@@ -50,7 +51,9 @@ export default function LoginPage({ onLogin }) {
       <div className="glass-card p-8 w-full max-w-sm">
 
         <div className="mb-6 text-center">
-          <span className="text-3xl">🔴</span>
+          <span className="inline-flex w-12 h-12 rounded-2xl bg-teal-100 text-teal-700 items-center justify-center">
+            <HiSignal className="w-7 h-7" />
+          </span>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 mt-2">{t('login.title')}</h1>
           <p className="text-sm text-slate-600 mt-1">{t('login.subtitle')}</p>
         </div>

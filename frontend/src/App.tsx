@@ -7,6 +7,7 @@ import DevicesPage from './components/DevicesPage'
 import IntegrationsPage from './components/IntegrationsPage'
 import UsersPage from './components/UsersPage'
 import LoginPage from './components/LoginPage'
+import { HiExclamationTriangle } from 'react-icons/hi2'
 import { getDevices, updateDevice, getUptimeStats } from './api'
 
 const REFRESH_INTERVAL = 5000
@@ -150,7 +151,7 @@ export default function App() {
           {error && (
             <div className="px-4 sm:px-6 lg:px-8 pt-5">
               <div className="glass-card border-red-200/70 bg-red-50/85 px-5 py-4 flex items-start gap-3">
-                <span className="text-red-500 mt-0.5">⚠️</span>
+                <HiExclamationTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
                 <p className="text-sm text-red-700">{error}</p>
               </div>
             </div>

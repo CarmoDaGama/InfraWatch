@@ -39,7 +39,7 @@
   "deviceTable.secondsAgo": "há {{diff}}s",
   "deviceTable.minutesAgo": "há {{diff}}m",
   "deviceTable.history": "Histórico",
-  "deviceTable.remove": "✕ Remover",
+  "deviceTable.remove": "Remover",
   "deviceTable.viewHistory": "Ver histórico de métricas",
   "deviceTable.deleteDevice": "Remover dispositivo",
 
@@ -77,8 +77,8 @@
   "sla.state": "Estado",
   "sla.actions": "Ações",
   "sla.noData": "Sem dados",
-  "sla.ok": "✓ Cumprido",
-  "sla.violated": "✗ Violado",
+  "sla.ok": "Cumprido",
+  "sla.violated": "Violado",
   "sla.critLow": "Baixa",
   "sla.critMedium": "Média",
   "sla.critHigh": "Alta",
@@ -154,7 +154,7 @@
   "integrations.message": "Mensagem",
   "integrations.actions": "Ações",
 
-  "status.up": "🟢 Ativo",
-  "status.down": "🔴 Inativo",
-  "status.unknown": "⚪ Desconhecido"
+  "status.up": "Ativo",
+  "status.down": "Inativo",
+  "status.unknown": "Desconhecido"
 }
