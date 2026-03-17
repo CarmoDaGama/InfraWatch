@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/rbac.js';
 import { toApiMetric, toIsoString } from '../serializers.js';
+import { getCachedJson } from '../cache.js';
 
 function getBucketSizeMinutes(hours) {
   if (hours <= 2) return null;
@@ -99,78 +100,82 @@ export default function metricsRouter(db) {
       const hours = parsePositiveInteger(getQueryValue(req.query.hours, '24'), 24);
       const since = new Date(Date.now() - hours * 60 * 60 * 1000);
       const bucketSizeMinutes = getBucketSizeMinutes(hours);
+      const cacheKey = `cache:metrics:device:${deviceId}:hours:${hours}`;
+      const payload = await getCachedJson(cacheKey, 30, async () => {
+        const rows = await db.metric.findMany({
+          where: {
+            deviceId,
+            checkedAt: { gte: since },
+          },
+          select: {
+            status: true,
+            responseTime: true,
+            checkedAt: true,
+          },
+          orderBy: { checkedAt: 'asc' },
+          take: bucketSizeMinutes === null ? 720 : undefined,
+        });
 
-      const rows = await db.metric.findMany({
-        where: {
-          deviceId,
-          checkedAt: { gte: since },
-        },
-        select: {
-          status: true,
-          responseTime: true,
-          checkedAt: true,
-        },
-        orderBy: { checkedAt: 'asc' },
-        take: bucketSizeMinutes === null ? 720 : undefined,
+        const metrics =
+          bucketSizeMinutes === null
+            ? rows.map((row) => ({
+                bucket: toIsoString(row.checkedAt),
+                status: row.status,
+                response_time: row.responseTime,
+                check_count: 1,
+              }))
+            : (() => {
+                const buckets = rows.reduce((accumulator, row) => {
+                  const bucket = getBucketStart(row.checkedAt, bucketSizeMinutes);
+                  const current = accumulator.get(bucket) ?? {
+                    bucket,
+                    hasDown: false,
+                    responseTimeTotal: 0,
+                    upChecks: 0,
+                    check_count: 0,
+                  };
+
+                  current.hasDown = current.hasDown || row.status === 'down';
+                  current.check_count += 1;
+                  if (row.status === 'up' && typeof row.responseTime === 'number') {
+                    current.responseTimeTotal += row.responseTime;
+                    current.upChecks += 1;
+                  }
+
+                  accumulator.set(bucket, current);
+                  return accumulator;
+                }, new Map<string, MetricBucket>());
+                const bucketValues = Array.from(buckets.values()) as MetricBucket[];
+
+                return bucketValues
+                  .sort((left, right) => left.bucket.localeCompare(right.bucket))
+                  .map((bucket) => ({
+                    bucket: bucket.bucket,
+                    status: bucket.hasDown ? 'down' : 'up',
+                    response_time: bucket.upChecks > 0 ? bucket.responseTimeTotal / bucket.upChecks : null,
+                    check_count: bucket.check_count,
+                  }));
+              })();
+
+        const upResponseTimes = rows
+          .filter((row) => row.status === 'up' && typeof row.responseTime === 'number')
+          .map((row) => row.responseTime as number);
+        const stats = {
+          total: rows.length,
+          up_count: rows.filter((row) => row.status === 'up').length,
+          down_count: rows.filter((row) => row.status === 'down').length,
+          avg_rt:
+            upResponseTimes.length > 0
+              ? upResponseTimes.reduce((sum, value) => sum + value, 0) / upResponseTimes.length
+              : null,
+          min_rt: upResponseTimes.length > 0 ? Math.min(...upResponseTimes) : null,
+          max_rt: upResponseTimes.length > 0 ? Math.max(...upResponseTimes) : null,
+        };
+
+        return { metrics, stats };
       });
 
-      const metrics =
-        bucketSizeMinutes === null
-          ? rows.map((row) => ({
-              bucket: toIsoString(row.checkedAt),
-              status: row.status,
-              response_time: row.responseTime,
-              check_count: 1,
-            }))
-          : (() => {
-              const buckets = rows.reduce((accumulator, row) => {
-                const bucket = getBucketStart(row.checkedAt, bucketSizeMinutes);
-                const current = accumulator.get(bucket) ?? {
-                  bucket,
-                  hasDown: false,
-                  responseTimeTotal: 0,
-                  upChecks: 0,
-                  check_count: 0,
-                };
-
-                current.hasDown = current.hasDown || row.status === 'down';
-                current.check_count += 1;
-                if (row.status === 'up' && typeof row.responseTime === 'number') {
-                  current.responseTimeTotal += row.responseTime;
-                  current.upChecks += 1;
-                }
-
-                accumulator.set(bucket, current);
-                return accumulator;
-              }, new Map<string, MetricBucket>());
-              const bucketValues = Array.from(buckets.values()) as MetricBucket[];
-
-              return bucketValues
-                .sort((left, right) => left.bucket.localeCompare(right.bucket))
-                .map((bucket) => ({
-                  bucket: bucket.bucket,
-                  status: bucket.hasDown ? 'down' : 'up',
-                  response_time: bucket.upChecks > 0 ? bucket.responseTimeTotal / bucket.upChecks : null,
-                  check_count: bucket.check_count,
-                }));
-            })();
-
-      const upResponseTimes = rows
-        .filter((row) => row.status === 'up' && typeof row.responseTime === 'number')
-        .map((row) => row.responseTime as number);
-      const stats = {
-        total: rows.length,
-        up_count: rows.filter((row) => row.status === 'up').length,
-        down_count: rows.filter((row) => row.status === 'down').length,
-        avg_rt:
-          upResponseTimes.length > 0
-            ? upResponseTimes.reduce((sum, value) => sum + value, 0) / upResponseTimes.length
-            : null,
-        min_rt: upResponseTimes.length > 0 ? Math.min(...upResponseTimes) : null,
-        max_rt: upResponseTimes.length > 0 ? Math.max(...upResponseTimes) : null,
-      };
-
-      res.json({ metrics, stats });
+      res.json(payload);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -180,40 +185,42 @@ export default function metricsRouter(db) {
     try {
       const hours = parsePositiveInteger(getQueryValue(req.query.hours, '24'), 24);
       const since = new Date(Date.now() - hours * 60 * 60 * 1000);
-
-      const devices = await db.device.findMany({
-        orderBy: { createdAt: 'asc' },
-        include: {
-          metrics: {
-            where: { checkedAt: { gte: since } },
-            select: { status: true },
+      const cacheKey = `cache:metrics:uptime:hours:${hours}`;
+      const payload = await getCachedJson(cacheKey, 30, async () => {
+        const devices = await db.device.findMany({
+          orderBy: { createdAt: 'asc' },
+          include: {
+            metrics: {
+              where: { checkedAt: { gte: since } },
+              select: { status: true },
+            },
           },
-        },
+        });
+
+        return devices.map((device) => {
+          const totalChecks = device.metrics.length;
+          const upCount = device.metrics.filter((metric) => metric.status === 'up').length;
+          const uptimePct =
+            totalChecks > 0 ? Math.round((upCount / totalChecks) * 10000) / 100 : null;
+          const slaTarget = device.slaTarget ?? 99.0;
+          const criticality = device.criticality ?? 'medium';
+          const slaMet = uptimePct !== null ? uptimePct >= slaTarget : null;
+
+          return {
+            id: device.id,
+            name: device.name,
+            url: device.url,
+            sla_target: slaTarget,
+            criticality,
+            uptime_pct: uptimePct,
+            sla_met: slaMet,
+            total_checks: totalChecks,
+            up_count: upCount,
+          };
+        });
       });
 
-      const uptime = devices.map((device) => {
-        const totalChecks = device.metrics.length;
-        const upCount = device.metrics.filter((metric) => metric.status === 'up').length;
-        const uptimePct =
-          totalChecks > 0 ? Math.round((upCount / totalChecks) * 10000) / 100 : null;
-        const slaTarget = device.slaTarget ?? 99.0;
-        const criticality = device.criticality ?? 'medium';
-        const slaMet = uptimePct !== null ? uptimePct >= slaTarget : null;
-
-        return {
-          id: device.id,
-          name: device.name,
-          url: device.url,
-          sla_target: slaTarget,
-          criticality,
-          uptime_pct: uptimePct,
-          sla_met: slaMet,
-          total_checks: totalChecks,
-          up_count: upCount,
-        };
-      });
-
-      res.json(uptime);
+      res.json(payload);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

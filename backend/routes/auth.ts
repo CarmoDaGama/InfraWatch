@@ -3,9 +3,23 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendAlert } from '../notify.js';
 import { normalizeRole, resolvePermissions } from '../middleware/rbac.js';
+import { createSession, isSessionStoreEnabled } from '../session-store.js';
 
 function getJwtSecret() {
   return process.env.JWT_SECRET ?? 'dev-secret-change-me';
+}
+
+function parseDurationToSeconds(value: string | undefined) {
+  const input = String(value ?? '8h').trim();
+  const match = input.match(/^(\d+)([smhd]?)$/i);
+  if (!match) return 8 * 60 * 60;
+
+  const amount = Number.parseInt(match[1], 10);
+  const unit = (match[2] || 's').toLowerCase();
+  if (unit === 'm') return amount * 60;
+  if (unit === 'h') return amount * 60 * 60;
+  if (unit === 'd') return amount * 24 * 60 * 60;
+  return amount;
 }
 
 export default function authRouter(db) {
@@ -42,10 +56,23 @@ export default function authRouter(db) {
       const permissions = resolvePermissions(role);
 
       const expiresIn = (process.env.JWT_EXPIRES_IN ?? '8h') as jwt.SignOptions['expiresIn'];
+      const sessionTtlSeconds = parseDurationToSeconds(process.env.JWT_EXPIRES_IN);
+      const jti = await createSession(
+        {
+          id: user.id,
+          email: user.email,
+          role,
+        },
+        sessionTtlSeconds,
+      );
+
       const token = jwt.sign(
         { sub: user.id, email: user.email, role },
         getJwtSecret(),
-        { expiresIn }
+        {
+          expiresIn,
+          ...(jti ? { jwtid: jti } : {}),
+        }
       );
 
       return res.json({
@@ -56,6 +83,7 @@ export default function authRouter(db) {
           role,
           permissions,
         },
+        session_store: isSessionStoreEnabled() ? 'redis' : 'jwt-only',
       });
     } catch (err) {
       return res.status(500).json({ error: err.message });

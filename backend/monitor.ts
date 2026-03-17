@@ -6,6 +6,9 @@ import {
   getOrCreateCircuitBreaker,
   executeWithRetry,
 } from './circuit-breaker.js';
+import { invalidateDeviceStatsCache } from './cache.js';
+import { emitIntegrationEvent } from './integrations/manager.js';
+import { enqueueMonitorCheck, isWorkerQueueEnabled } from './queue.js';
 
 let intervalId = null;
 const DEFAULT_FALLBACK_INTERVAL_MS = 5000;
@@ -200,6 +203,14 @@ export function startMonitoring(db, notifyFn, slaAlertFn = null) {
 
       if (dueDevices.length === 0) return;
 
+      if (isWorkerQueueEnabled()) {
+        await Promise.allSettled(dueDevices.map((device) => enqueueMonitorCheck(device.id)));
+        for (const device of dueDevices) {
+          inFlight.delete(device.id);
+        }
+        return;
+      }
+
       const results = await Promise.all(
         dueDevices.map(async (device) => {
           try {
@@ -227,9 +238,16 @@ export function startMonitoring(db, notifyFn, slaAlertFn = null) {
             },
           });
 
+          await invalidateDeviceStatsCache(device.id);
+
           const previousStatus = previousMetric?.status ?? null;
           if (previousStatus !== status) {
             void notifyFn(device, status, previousStatus);
+            void emitIntegrationEvent('device.status_changed', {
+              device,
+              previous_status: previousStatus,
+              new_status: status,
+            });
           }
 
           // ── Check SLA Violation after metric is recorded ──

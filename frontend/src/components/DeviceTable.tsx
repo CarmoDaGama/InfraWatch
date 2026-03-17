@@ -54,25 +54,25 @@ export default function DeviceTable({ devices, onDelete, onViewHistory, loading,
   ]
 
   return (
-    <div className="bg-white rounded-xl shadow overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h2 className="text-lg font-semibold text-gray-800">{t('deviceTable.title')}</h2>
+    <div className="glass-card overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-200/70">
+        <h2 className="text-lg font-extrabold text-slate-800">{t('deviceTable.title')}</h2>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-100">
-          <thead className="bg-gray-50">
+        <table className="min-w-full divide-y divide-slate-200/70">
+          <thead className="bg-slate-50/80">
             <tr>
               {headers.map((h) => (
                 <th
                   key={h}
-                  className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                  className="px-6 py-3 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider"
                 >
                   {h}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-200/70">
             {loading && devices.length === 0 ? (
               <>
                 <SkeletonRow />
@@ -89,7 +89,7 @@ export default function DeviceTable({ devices, onDelete, onViewHistory, loading,
               devices.map((device) => (
                 <tr
                   key={device.id}
-                  className={device.status === 'down' ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-gray-50'}
+                  className={device.status === 'down' ? 'bg-red-50/65 hover:bg-red-100/70' : 'hover:bg-slate-50/80'}
                 >
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
                     {device.name}

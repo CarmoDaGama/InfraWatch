@@ -29,9 +29,9 @@ export default function UptimeChart({ uptimeStats }) {
 
   if (!uptimeStats || uptimeStats.length === 0) {
     return (
-      <div className="bg-white rounded-xl shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('uptime.title')}</h2>
-        <div className="flex items-center justify-center h-48 text-gray-400 text-sm">
+      <div className="glass-card p-6">
+        <h2 className="text-lg font-extrabold text-slate-800 mb-4">{t('uptime.title')}</h2>
+        <div className="flex items-center justify-center h-48 text-slate-500 text-sm font-medium">
           {t('uptime.noData')}
         </div>
       </div>
@@ -84,10 +84,10 @@ export default function UptimeChart({ uptimeStats }) {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow p-6">
+    <div className="glass-card p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-800">{t('uptime.title')}</h2>
-        <div className="flex items-center gap-4 text-xs text-gray-500">
+        <h2 className="text-lg font-extrabold text-slate-800">{t('uptime.title')}</h2>
+        <div className="flex items-center gap-4 text-xs text-slate-600 font-semibold">
           <span className="flex items-center gap-1">
             <span className="inline-block w-3 h-3 rounded-sm bg-green-400" /> {t('uptime.slaOk')}
           </span>

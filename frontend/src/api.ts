@@ -46,3 +46,5 @@ export const getDeviceMetrics = (id, hours = 24) => api.get(`/metrics/device/${i
 export const getUptimeStats   = (hours = 24)   => api.get('/metrics/uptime', { params: { hours } })
 export const getUsers         = ()             => api.get('/users')
 export const updateUserRole   = (id, role)     => api.patch(`/users/${id}/role`, { role })
+export const getIntegrationEvents = (limit = 100, offset = 0, provider = undefined) =>
+  api.get('/integrations/events', { params: { limit, offset, provider } })

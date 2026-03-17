@@ -1,3 +1,75 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+	:root {
+		--bg-0: #f4f7fb;
+		--bg-1: #e9f0f8;
+		--bg-2: #dbe8f4;
+		--text-strong: #102033;
+		--text-soft: #4f6278;
+		--surface: rgba(255, 255, 255, 0.74);
+		--surface-border: rgba(255, 255, 255, 0.65);
+		--brand: #0f766e;
+		--brand-soft: #2dd4bf;
+		--danger: #dc2626;
+		--success: #16a34a;
+	}
+
+	html,
+	body,
+	#root {
+		height: 100%;
+	}
+
+	body {
+		margin: 0;
+		font-family: 'Manrope', sans-serif;
+		color: var(--text-strong);
+		background:
+			radial-gradient(1200px 700px at -10% -20%, rgba(45, 212, 191, 0.2), transparent 60%),
+			radial-gradient(900px 500px at 105% 10%, rgba(14, 116, 144, 0.18), transparent 60%),
+			linear-gradient(140deg, var(--bg-0), var(--bg-1) 45%, var(--bg-2));
+	}
+}
+
+@layer components {
+	.app-shell {
+		@apply flex h-screen;
+	}
+
+	.main-shell {
+		@apply flex-1 flex flex-col overflow-hidden;
+	}
+
+	.content-scroll {
+		@apply flex-1 overflow-y-auto;
+	}
+
+	.page-frame {
+		@apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6;
+	}
+
+	.glass-card {
+		background: var(--surface);
+		border: 1px solid var(--surface-border);
+		box-shadow:
+			0 20px 60px -30px rgba(15, 23, 42, 0.45),
+			0 1px 0 rgba(255, 255, 255, 0.4) inset;
+		backdrop-filter: blur(12px);
+		@apply rounded-2xl;
+	}
+
+	.section-title {
+		@apply text-xl font-extrabold tracking-tight;
+		color: var(--text-strong);
+	}
+
+	.section-subtitle {
+		@apply text-sm;
+		color: var(--text-soft);
+	}
+}

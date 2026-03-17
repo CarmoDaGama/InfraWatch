@@ -15,15 +15,15 @@ function LangSwitcher() {
   }
 
   return (
-    <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-0.5">
+    <div className="flex items-center gap-1 rounded-xl bg-slate-900/80 p-1 border border-slate-700/70">
       {LANGS.map(({ code, label }) => (
         <button
           key={code}
           onClick={() => switchLang(code)}
-          className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-all ${
             current === code
-              ? 'bg-blue-600 text-white shadow'
-              : 'text-gray-400 hover:text-white'
+              ? 'bg-teal-500 text-slate-900 shadow'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800'
           }`}
         >
           {label}
@@ -36,16 +36,16 @@ function LangSwitcher() {
 export default function Header({ onLogout, role }) {
   const { t } = useTranslation()
   return (
-    <header className="bg-gray-900 text-white py-6 px-6 shadow-lg">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl animate-pulse">🔴</span>
+    <header className="px-4 sm:px-6 lg:px-8 pt-4">
+      <div className="glass-card rounded-2xl px-5 py-4 flex items-center justify-between border-slate-100/80">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-2xl">🔴</span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">{t('header.title')}</h1>
-            <p className="text-gray-400 text-sm mt-0.5">{t('header.subtitle')}</p>
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">{t('header.title')}</h1>
+            <p className="text-slate-600 text-xs sm:text-sm mt-0.5">{t('header.subtitle')}</p>
             {role && (
-              <p className="text-gray-500 text-xs mt-0.5">
-                {t('header.role')}: <span className="font-semibold uppercase tracking-wide">{role}</span>
+              <p className="text-slate-500 text-xs mt-0.5">
+                {t('header.role')}: <span className="font-bold uppercase tracking-wide text-slate-700">{role}</span>
               </p>
             )}
           </div>
@@ -55,7 +55,7 @@ export default function Header({ onLogout, role }) {
           {onLogout && (
             <button
               onClick={onLogout}
-              className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm font-medium text-gray-200 transition-colors"
+              className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition-colors shadow"
             >
               {t('header.signOut')}
             </button>

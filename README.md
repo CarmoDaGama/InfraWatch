@@ -13,6 +13,9 @@ Uma plataforma de monitoramento em tempo real de infraestruturas com dashboards 
 - 🔔 **Alerts** – email, Telegram, SMS (Twilio), and push (FCM/Webhook) on status change
 - ➕ **Device management** – add/remove devices via a web form
 - 🗃️ **Persistence** – SQLite stores device configurations and metric history
+- ⚡ **Redis cache (P1)** – 30-second cache for device stats and uptime queries
+- 🧵 **Bull worker queue (P1)** – queued monitoring checks + notification workers
+- 🔌 **Integrations (P1)** – plugin-based GLPI/DocuWare outbound + inbound webhook sync
 
 ---
 
@@ -100,6 +103,19 @@ Copy `backend/.env.example` to `backend/.env` and adjust:
 | `PUSH_FCM_TOPIC` | – | FCM topic name (optional alternative to tokens) |
 | `PUSH_WEBHOOK_URL` | – | Push webhook endpoint (when provider is `webhook`) |
 | `PUSH_WEBHOOK_AUTH_TOKEN` | – | Optional bearer token for push webhook |
+| `REDIS_ENABLED` | `false` | Enable Redis-backed cache and distributed session store |
+| `REDIS_URL` | `redis://127.0.0.1:6379` | Redis connection URL |
+| `REDIS_SESSION_ENABLED` | `true` | Enforce JWT session IDs (`jti`) against Redis |
+| `WORKER_QUEUE_ENABLED` | `false` | Enable Bull queues for monitor and notification jobs |
+| `MONITOR_WORKER_CONCURRENCY` | `5` | Monitor worker pool size |
+| `NOTIFY_WORKER_CONCURRENCY` | `8` | Notification worker pool size |
+| `INTEGRATIONS_WEBHOOK_SECRET` | – | Shared secret for inbound integration webhooks (`x-integration-secret`) |
+| `GLPI_ENABLED` | `false` | Enable GLPI plugin |
+| `GLPI_WEBHOOK_URL` | – | GLPI outbound webhook endpoint |
+| `GLPI_WEBHOOK_TOKEN` | – | Optional bearer token for GLPI webhook |
+| `DOCUWARE_ENABLED` | `false` | Enable DocuWare plugin |
+| `DOCUWARE_WEBHOOK_URL` | – | DocuWare outbound webhook endpoint |
+| `DOCUWARE_WEBHOOK_TOKEN` | – | Optional bearer token for DocuWare webhook |
 
 ---
 
@@ -136,6 +152,7 @@ Bootstrap admin user via environment variables:
 | GET | `/api/metrics/uptime` | Uptime % per device (`hours`) |
 | GET | `/api/users` | List users and roles (admin) |
 | PATCH | `/api/users/:id/role` | Update user role (`viewer`, `operator`, `admin`) (admin) |
+| POST | `/api/integrations/webhook/:provider` | Inbound sync endpoint for `glpi` / `docuware` |
 
 ---
 

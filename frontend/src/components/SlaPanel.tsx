@@ -82,25 +82,25 @@ export default function SlaPanel({ uptimeStats, onUpdate, canEdit = false }) {
   if (!uptimeStats || uptimeStats.length === 0) return null
 
   return (
-    <div className="bg-white rounded-xl shadow overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-800">{t('sla.title')}</h2>
-        <span className="text-xs text-gray-400">{t('sla.subtitle')}</span>
+    <div className="glass-card overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-200/70 flex items-center justify-between">
+        <h2 className="text-lg font-extrabold text-slate-800">{t('sla.title')}</h2>
+        <span className="text-xs text-slate-500">{t('sla.subtitle')}</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-100">
-          <thead className="bg-gray-50">
+        <table className="min-w-full divide-y divide-slate-200/70">
+          <thead className="bg-slate-50/80">
             <tr>
               {[t('sla.device'), t('sla.criticality'), t('sla.target'), t('sla.realUptime'), t('sla.state'), t('sla.actions')].map((h) => (
-                <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
+                <th key={h} className="px-6 py-3 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-200/70">
             {uptimeStats.map((stat) => {
               const isEditing = editing?.id === stat.id
               return (
-                <tr key={stat.id} className={stat.sla_met === false ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-gray-50'}>
+                <tr key={stat.id} className={stat.sla_met === false ? 'bg-red-50/65 hover:bg-red-100/70' : 'hover:bg-slate-50/80'}>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">{stat.name}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {isEditing ? (

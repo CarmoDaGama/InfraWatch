@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import { sendAlert } from '../notify.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { toApiDevice } from '../serializers.js';
+import { getCachedJson, invalidateDeviceStatsCache } from '../cache.js';
+import { emitIntegrationEvent } from '../integrations/manager.js';
 
 const VALID_TYPES        = ['http', 'ping', 'snmp'];
 const VALID_CRITICALITY  = ['low', 'medium', 'high', 'critical'];
@@ -21,21 +23,25 @@ export default function devicesRouter(db) {
 
   router.get('/', requirePermission('devices:read'), async (_req, res) => {
     try {
-      const devices = await db.device.findMany({
-        orderBy: { createdAt: 'asc' },
-        include: {
-          metrics: {
-            orderBy: { checkedAt: 'desc' },
-            take: 1,
-            select: {
-              status: true,
-              checkedAt: true,
-              responseTime: true,
+      const devices = await getCachedJson('cache:devices:list', 30, async () => {
+        const rows = await db.device.findMany({
+          orderBy: { createdAt: 'asc' },
+          include: {
+            metrics: {
+              orderBy: { checkedAt: 'desc' },
+              take: 1,
+              select: {
+                status: true,
+                checkedAt: true,
+                responseTime: true,
+              },
             },
           },
-        },
+        });
+
+        return rows.map(toApiDevice);
       });
-      res.json(devices.map(toApiDevice));
+      res.json(devices);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -102,6 +108,8 @@ export default function devicesRouter(db) {
         `InfraWatch: Device Adicionado - ${device.name}`,
         `O device "${device.name}" (${device.url}) foi adicionado ao monitoramento em ${new Date().toISOString()}`
       );
+      void invalidateDeviceStatsCache(device.id);
+      void emitIntegrationEvent('device.created', { device });
       res.status(201).json(toApiDevice(device));
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -163,6 +171,8 @@ export default function devicesRouter(db) {
         `InfraWatch: Configuração Alterada - ${device.name}`,
         `A configuração do device "${device.name}" (${device.url}) foi alterada em ${new Date().toISOString()}\nCampos alterados: ${updates.join(', ')}`
       );
+      void invalidateDeviceStatsCache(device.id);
+      void emitIntegrationEvent('device.updated', { device, fields: updates });
       res.json(toApiDevice(device));
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
@@ -190,6 +200,8 @@ export default function devicesRouter(db) {
         `InfraWatch: Device Removido - ${device.name}`,
         `O device "${device.name}" (${device.url}) foi removido do monitoramento em ${new Date().toISOString()}`
       );
+      void invalidateDeviceStatsCache(deviceId);
+      void emitIntegrationEvent('device.deleted', { device });
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });

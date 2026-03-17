@@ -139,6 +139,21 @@
   "users.loading": "Loading users…",
   "users.empty": "No users found.",
 
+  "sidebar.dashboard": "Dashboard",
+  "sidebar.devices": "Devices",
+  "sidebar.integrations": "Integrations",
+  "sidebar.users": "Users",
+
+  "integrations.title": "Integration Events",
+  "integrations.noEvents": "No integration events captured yet",
+  "integrations.time": "Time",
+  "integrations.direction": "Direction",
+  "integrations.provider": "Provider",
+  "integrations.event": "Event",
+  "integrations.status": "Status",
+  "integrations.message": "Message",
+  "integrations.actions": "Actions",
+
   "status.up": "🟢 Up",
   "status.down": "🔴 Down",
   "status.unknown": "⚪ Unknown"

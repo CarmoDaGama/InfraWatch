@@ -1,25 +1,15 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import Header from './components/Header'
-import DeviceTable from './components/DeviceTable'
-import AddDeviceForm from './components/AddDeviceForm'
-import UptimeChart from './components/UptimeChart'
-import SlaPanel from './components/SlaPanel'
-import MetricsDrawer from './components/MetricsDrawer'
+import Sidebar from './components/Sidebar'
+import DashboardPage from './components/DashboardPage'
+import DevicesPage from './components/DevicesPage'
+import IntegrationsPage from './components/IntegrationsPage'
+import UsersPage from './components/UsersPage'
 import LoginPage from './components/LoginPage'
-import UsersPanel from './components/UsersPanel'
-import { getDevices, deleteDevice, updateDevice, getUptimeStats } from './api'
+import { getDevices, updateDevice, getUptimeStats } from './api'
 
 const REFRESH_INTERVAL = 5000
-
-function StatCard({ label, value, color }) {
-  return (
-    <div className="bg-white rounded-xl shadow px-6 py-4 flex flex-col items-center">
-      <span className={`text-3xl font-bold ${color}`}>{value}</span>
-      <span className="text-sm text-gray-500 mt-1">{label}</span>
-    </div>
-  )
-}
 
 export default function App() {
   const { t } = useTranslation()
@@ -38,7 +28,7 @@ export default function App() {
   const [uptimeStats, setUptimeStats] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [selectedDevice, setSelectedDevice] = useState(null)
+  const [activeRoute, setActiveRoute] = useState('dashboard')
 
   function handleLogin(auth) {
     const newToken = auth?.token
@@ -63,7 +53,7 @@ export default function App() {
     setAuthUser(null)
     setDevices([])
     setUptimeStats([])
-    setSelectedDevice(null)
+    setActiveRoute('dashboard')
     setLoading(true)
     setError(null)
   }, [])
@@ -101,11 +91,6 @@ export default function App() {
       }))
       setDevices(mapped)
       setUptimeStats(uptimeRes.data)
-      // Keep the open detail view in sync with the refreshed device data
-      setSelectedDevice((prev) => {
-        if (!prev) return null
-        return mapped.find((d) => d.id === prev.id) ?? prev
-      })
       setError(null)
     } catch (err) {
       if (err.response?.status === 401) return // interceptor already fired auth:logout
@@ -128,19 +113,6 @@ export default function App() {
     return () => clearInterval(timer)
   }, [fetchData, token])
 
-  async function handleDelete(id) {
-    try {
-      await deleteDevice(id)
-      await fetchData()
-    } catch (err) {
-      setError(
-        err.response?.status === 403
-          ? t('app.forbidden')
-          : t('app.deleteError', { message: err.message })
-      )
-    }
-  }
-
   async function handleUpdateDevice(id, data) {
     try {
       await updateDevice(id, data)
@@ -158,63 +130,72 @@ export default function App() {
     return <LoginPage onLogin={handleLogin} />
   }
 
-  const upCount = devices.filter((d) => d.status === 'up').length
-  const downCount = devices.filter((d) => d.status === 'down').length
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header onLogout={handleLogout} role={authUser?.role} />
+    <div className="app-shell">
+      {/* Sidebar */}
+      <Sidebar activeRoute={activeRoute} onNavigate={setActiveRoute} role={authUser?.role} />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 flex items-start gap-3">
-            <span className="text-red-500 mt-0.5">⚠️</span>
-            <p className="text-sm text-red-700">{error}</p>
+      {/* Main content */}
+      <div className="main-shell">
+        <Header onLogout={handleLogout} role={authUser?.role} />
+
+        {/* Page content */}
+        <div className="content-scroll relative">
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute -top-20 -right-24 h-64 w-64 rounded-full bg-cyan-200/30 blur-3xl" />
+            <div className="absolute bottom-0 left-1/3 h-56 w-56 rounded-full bg-teal-200/25 blur-3xl" />
           </div>
-        )}
 
-        {loading && devices.length === 0 ? (
-          <div className="flex justify-center items-center py-24">
-            <div className="flex flex-col items-center gap-3 text-gray-400">
-              <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm">{t('app.loading')}</span>
+          <div className="relative z-10">
+          {error && (
+            <div className="px-4 sm:px-6 lg:px-8 pt-5">
+              <div className="glass-card border-red-200/70 bg-red-50/85 px-5 py-4 flex items-start gap-3">
+                <span className="text-red-500 mt-0.5">⚠️</span>
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
             </div>
+          )}
+
+          {loading && devices.length === 0 ? (
+            <div className="flex justify-center items-center h-96 px-4">
+              <div className="glass-card px-8 py-7 flex flex-col items-center gap-3 text-slate-500">
+                <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm font-semibold">{t('app.loading')}</span>
+              </div>
+            </div>
+          ) : (
+            <>
+              {activeRoute === 'dashboard' && (
+                <DashboardPage
+                  devices={devices}
+                  uptimeStats={uptimeStats}
+                  onUpdate={handleUpdateDevice}
+                  canUpdate={canUpdateDevices}
+                />
+              )}
+
+              {activeRoute === 'devices' && (
+                <DevicesPage
+                  devices={devices}
+                  loading={loading}
+                  onRefresh={fetchData}
+                  canCreate={canCreateDevices}
+                  canDelete={canDeleteDevices}
+                  canUpdate={canUpdateDevices}
+                  authUser={authUser}
+                />
+              )}
+
+              {activeRoute === 'integrations' && <IntegrationsPage />}
+
+              {activeRoute === 'users' && canReadUsers && (
+                <UsersPage canUpdate={canUpdateUsers} />
+              )}
+            </>
+          )}
           </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-3 gap-4">
-              <StatCard label={t('app.totalDevices')} value={devices.length} color="text-gray-800" />
-              <StatCard label={t('app.up')} value={upCount} color="text-green-600" />
-              <StatCard label={t('app.down')} value={downCount} color="text-red-600" />
-            </div>
-
-            {canCreateDevices && <AddDeviceForm onAdd={fetchData} />}
-
-            <DeviceTable
-              devices={devices}
-              onDelete={handleDelete}
-              onViewHistory={setSelectedDevice}
-              loading={loading}
-              canDelete={canDeleteDevices}
-            />
-
-            <UptimeChart uptimeStats={uptimeStats} />
-
-            <SlaPanel uptimeStats={uptimeStats} onUpdate={handleUpdateDevice} canEdit={canUpdateDevices} />
-
-            {canReadUsers && <UsersPanel canUpdate={canUpdateUsers} />}
-          </>
-        )}
-      </main>
-
-      {selectedDevice && (
-        <MetricsDrawer
-          device={selectedDevice}
-          onClose={() => setSelectedDevice(null)}
-          onUpdate={handleUpdateDevice}
-          canEdit={canUpdateDevices}
-        />
-      )}
+        </div>
+      </div>
     </div>
   )
 }

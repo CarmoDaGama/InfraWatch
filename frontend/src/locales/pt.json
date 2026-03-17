@@ -139,6 +139,21 @@
   "users.loading": "A carregar utilizadores…",
   "users.empty": "Nenhum utilizador encontrado.",
 
+  "sidebar.dashboard": "Dashboard",
+  "sidebar.devices": "Dispositivos",
+  "sidebar.integrations": "Integrações",
+  "sidebar.users": "Utilizadores",
+
+  "integrations.title": "Eventos de Integração",
+  "integrations.noEvents": "Nenhum evento de integração capturado ainda",
+  "integrations.time": "Hora",
+  "integrations.direction": "Direção",
+  "integrations.provider": "Fornecedor",
+  "integrations.event": "Evento",
+  "integrations.status": "Estado",
+  "integrations.message": "Mensagem",
+  "integrations.actions": "Ações",
+
   "status.up": "🟢 Ativo",
   "status.down": "🔴 Inativo",
   "status.unknown": "⚪ Desconhecido"

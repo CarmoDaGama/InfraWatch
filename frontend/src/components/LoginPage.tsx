@@ -44,13 +44,15 @@ export default function LoginPage({ onLogin }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="bg-white rounded-xl shadow p-8 w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center px-4" style={{
+      background: 'radial-gradient(900px 400px at 0% 0%, rgba(45,212,191,0.2), transparent 60%), radial-gradient(900px 500px at 100% 100%, rgba(14,116,144,0.2), transparent 60%), linear-gradient(145deg, #eef4fb, #dbe8f4)'
+    }}>
+      <div className="glass-card p-8 w-full max-w-sm">
 
         <div className="mb-6 text-center">
-          <span className="text-3xl animate-pulse">🔴</span>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 mt-2">{t('login.title')}</h1>
-          <p className="text-sm text-gray-500 mt-1">{t('login.subtitle')}</p>
+          <span className="text-3xl">🔴</span>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 mt-2">{t('login.title')}</h1>
+          <p className="text-sm text-slate-600 mt-1">{t('login.subtitle')}</p>
         </div>
 
         <form onSubmit={handleSubmit} noValidate className="space-y-4">

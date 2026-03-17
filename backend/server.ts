@@ -8,11 +8,16 @@ import devicesRouter from './routes/devices.js';
 import metricsRouter from './routes/metrics.js';
 import usersRouter from './routes/users.js';
 import slaRouter from './routes/sla.js';
+import integrationsRouter from './routes/integrations.js';
 import { verifyToken } from './middleware/auth.js';
 import { startMonitoring } from './monitor.js';
 import { sendNotification, sendAlert, sendSLAViolationAlert } from './notify.js';
+import { initCache, stopCache } from './cache.js';
+import { initQueues, stopQueues } from './queue.js';
 
+await initCache();
 await ensureDbReady();
+await initQueues({ db, notifyFn: sendNotification, slaAlertFn: sendSLAViolationAlert });
 
 const app = express();
 
@@ -29,6 +34,7 @@ app.use('/api/', apiLimiter);
 
 // Public routes
 app.use('/api/auth', authRouter(db));
+app.use('/api/integrations', integrationsRouter());
 
 // Protected routes
 app.use('/api/devices', verifyToken, devicesRouter(db));
@@ -59,6 +65,18 @@ if (process.env.NODE_ENV !== 'test') {
       'InfraWatch: Erro Assíncrono Não Tratado',
       `Promise rejeitada sem tratamento: ${reason}\nTimestamp: ${new Date().toISOString()}`
     );
+  });
+
+  process.on('SIGINT', async () => {
+    await stopQueues();
+    await stopCache();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', async () => {
+    await stopQueues();
+    await stopCache();
+    process.exit(0);
   });
 }
 
