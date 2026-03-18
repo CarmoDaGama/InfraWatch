@@ -3,8 +3,13 @@ import { getCacheClient, isRedisEnabled } from './cache.js';
 
 const SESSION_PREFIX = 'session:';
 
+function getErrorMessage(err: unknown) {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export function isSessionStoreEnabled() {
-  return isRedisEnabled() && String(process.env.REDIS_SESSION_ENABLED ?? 'true').toLowerCase() === 'true';
+  const sessionFlagEnabled = String(process.env.REDIS_SESSION_ENABLED ?? 'true').toLowerCase() === 'true';
+  return isRedisEnabled() && sessionFlagEnabled && Boolean(getCacheClient());
 }
 
 export async function createSession(user: { id: number; email: string; role: string }, ttlSeconds: number) {
@@ -15,22 +20,27 @@ export async function createSession(user: { id: number; email: string; role: str
 
   const jti = crypto.randomUUID();
   const key = `${SESSION_PREFIX}${jti}`;
-  await cache.setex(
-    key,
-    ttlSeconds,
-    JSON.stringify({
-      user_id: user.id,
-      email: user.email,
-      role: user.role,
-      created_at: new Date().toISOString(),
-    })
-  );
+  try {
+    await cache.setex(
+      key,
+      ttlSeconds,
+      JSON.stringify({
+        user_id: user.id,
+        email: user.email,
+        role: user.role,
+        created_at: new Date().toISOString(),
+      })
+    );
+  } catch (err) {
+    console.warn('[InfraWatch] Redis session write failed, issuing JWT-only session:', getErrorMessage(err));
+    return null;
+  }
 
   return jti;
 }
 
 export async function hasActiveSession(jti: string | undefined) {
-  if (!jti) return false;
+  if (!jti) return true;
 
   const cache = getCacheClient();
   if (!cache || !isSessionStoreEnabled()) {

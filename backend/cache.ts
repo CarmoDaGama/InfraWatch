@@ -6,6 +6,10 @@ function isTrue(value: string | undefined) {
   return String(value ?? '').toLowerCase() === 'true';
 }
 
+function getErrorMessage(err: unknown) {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export function isRedisEnabled() {
   return isTrue(process.env.REDIS_ENABLED);
 }
@@ -21,20 +25,49 @@ export async function initCache() {
 
   const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
   const client = new Redis(redisUrl, {
-    maxRetriesPerRequest: 1,
+    maxRetriesPerRequest: null,
     enableReadyCheck: true,
+    lazyConnect: true,
+    retryStrategy(times) {
+      if (times > 3) return null; // stop reconnecting after 3 attempts
+      return Math.min(times * 200, 2000);
+    },
+    reconnectOnError() {
+      return false; // don't auto-reconnect on command errors
+    },
   });
 
   client.on('error', (err) => {
     console.error('[InfraWatch] Redis cache error:', err.message);
   });
 
-  await client.connect().catch(() => undefined);
+  client.on('end', () => {
+    if (cacheClient === client) {
+      cacheClient = null;
+    }
+  });
+
+  try {
+    await client.connect();
+  } catch (err) {
+    console.warn('[InfraWatch] Redis unavailable, continuing without cache/session store:', getErrorMessage(err));
+    await client.quit().catch(() => undefined);
+    return null;
+  }
+
   cacheClient = client;
   return cacheClient;
 }
 
 export function getCacheClient() {
+  if (!cacheClient) {
+    return null;
+  }
+
+  if (cacheClient.status !== 'ready') {
+    return null;
+  }
+
   return cacheClient;
 }
 

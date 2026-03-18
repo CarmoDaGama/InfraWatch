@@ -83,7 +83,7 @@ export default function authRouter(db) {
           role,
           permissions,
         },
-        session_store: isSessionStoreEnabled() ? 'redis' : 'jwt-only',
+        session_store: jti ? 'redis' : 'jwt-only',
       });
     } catch (err) {
       return res.status(500).json({ error: err.message });

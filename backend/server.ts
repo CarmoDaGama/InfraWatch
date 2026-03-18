@@ -21,6 +21,9 @@ await initQueues({ db, notifyFn: sendNotification, slaAlertFn: sendSLAViolationA
 
 const app = express();
 
+// Trust proxy headers (required for Vercel / reverse proxy deployments)
+app.set('trust proxy', 1);
+
 app.use(cors());
 app.use(express.json());
 
@@ -29,6 +32,7 @@ const apiLimiter = rateLimit({
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
 });
 app.use('/api/', apiLimiter);
 
