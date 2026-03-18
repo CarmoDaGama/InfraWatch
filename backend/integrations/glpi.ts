@@ -13,9 +13,11 @@ export const glpiPlugin: IntegrationPlugin = {
     if (!isEnabled()) return;
 
     const endpoint = process.env.GLPI_WEBHOOK_URL;
-    if (!endpoint) {
-      console.warn('[InfraWatch] GLPI enabled but GLPI_WEBHOOK_URL is missing');
-      logOutboundEvent('glpi', event.type, 'failed', 'GLPI_WEBHOOK_URL is not configured');
+    if (!endpoint || /^https?:\/\/(localhost|127\.0\.0\.1)/i.test(endpoint)) {
+      if (!endpoint) {
+        console.warn('[InfraWatch] GLPI enabled but GLPI_WEBHOOK_URL is missing');
+        logOutboundEvent('glpi', event.type, 'failed', 'GLPI_WEBHOOK_URL is not configured');
+      }
       return;
     }
 

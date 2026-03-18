@@ -78,3 +78,19 @@ model SLAViolation {
   @@index([createdAt])
   @@map("sla_violations")
 }
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?     @map("user_id")
+  email     String?
+  action    String   @db.VarChar(50)
+  target    String?  @db.VarChar(100)
+  targetId  String?  @map("target_id")
+  detail    String?
+  ip        String?  @db.VarChar(45)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([action])
+  @@map("audit_logs")
+}

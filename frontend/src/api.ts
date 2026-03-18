@@ -45,6 +45,9 @@ export const getMetrics       = (params)       => api.get('/metrics', { params }
 export const getDeviceMetrics = (id, hours = 24) => api.get(`/metrics/device/${id}`, { params: { hours } })
 export const getUptimeStats   = (hours = 24)   => api.get('/metrics/uptime', { params: { hours } })
 export const getUsers         = ()             => api.get('/users')
+export const createUser       = (data)         => api.post('/users', data)
+export const deleteUser       = (id)           => api.delete(`/users/${id}`)
 export const updateUserRole   = (id, role)     => api.patch(`/users/${id}/role`, { role })
+export const getAuditLogs     = (params)       => api.get('/audit', { params })
 export const getIntegrationEvents = (limit = 100, offset = 0, provider = undefined) =>
   api.get('/integrations/events', { params: { limit, offset, provider } })

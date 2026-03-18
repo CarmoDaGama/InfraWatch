@@ -13,9 +13,11 @@ export const docuwarePlugin: IntegrationPlugin = {
     if (!isEnabled()) return;
 
     const endpoint = process.env.DOCUWARE_WEBHOOK_URL;
-    if (!endpoint) {
-      console.warn('[InfraWatch] DocuWare enabled but DOCUWARE_WEBHOOK_URL is missing');
-      logOutboundEvent('docuware', event.type, 'failed', 'DOCUWARE_WEBHOOK_URL is not configured');
+    if (!endpoint || /^https?:\/\/(localhost|127\.0\.0\.1)/i.test(endpoint)) {
+      if (!endpoint) {
+        console.warn('[InfraWatch] DocuWare enabled but DOCUWARE_WEBHOOK_URL is missing');
+        logOutboundEvent('docuware', event.type, 'failed', 'DOCUWARE_WEBHOOK_URL is not configured');
+      }
       return;
     }
 

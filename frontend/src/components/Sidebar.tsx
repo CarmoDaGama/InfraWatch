@@ -1,11 +1,12 @@
 import { useTranslation } from 'react-i18next'
-import { HiChartBar, HiCpuChip, HiLink, HiUsers, HiSignal } from 'react-icons/hi2'
+import { HiChartBar, HiCpuChip, HiLink, HiUsers, HiSignal, HiClipboardDocumentList } from 'react-icons/hi2'
 
 const ROUTES = [
   { id: 'dashboard', icon: HiChartBar, label: 'sidebar.dashboard' },
   { id: 'devices', icon: HiCpuChip, label: 'sidebar.devices' },
   { id: 'integrations', icon: HiLink, label: 'sidebar.integrations' },
   { id: 'users', icon: HiUsers, label: 'sidebar.users', adminOnly: true },
+  { id: 'audit', icon: HiClipboardDocumentList, label: 'sidebar.audit', adminOnly: true },
 ]
 
 export default function Sidebar({ activeRoute, onNavigate, role }) {

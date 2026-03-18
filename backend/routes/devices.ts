@@ -5,6 +5,7 @@ import { requirePermission } from '../middleware/rbac.js';
 import { toApiDevice } from '../serializers.js';
 import { getCachedJson, invalidateDeviceStatsCache } from '../cache.js';
 import { emitIntegrationEvent } from '../integrations/manager.js';
+import { logAudit } from '../audit.js';
 
 const VALID_TYPES        = ['http', 'ping', 'snmp'];
 const VALID_CRITICALITY  = ['low', 'medium', 'high', 'critical'];
@@ -104,6 +105,15 @@ export default function devicesRouter(db) {
           checkIntervalSeconds: checkIntervalNum,
         },
       });
+      void logAudit(db, {
+        userId: (req as any).user?.id,
+        email: (req as any).user?.email,
+        action: 'device.created',
+        target: 'device',
+        targetId: device.id,
+        detail: `Device "${device.name}" (${device.url}) created`,
+        ip: req.ip,
+      });
       void sendAlert(
         `InfraWatch: Device Adicionado - ${device.name}`,
         `O device "${device.name}" (${device.url}) foi adicionado ao monitoramento em ${new Date().toISOString()}`
@@ -167,6 +177,15 @@ export default function devicesRouter(db) {
         where: { id: deviceId },
         data,
       });
+      void logAudit(db, {
+        userId: (req as any).user?.id,
+        email: (req as any).user?.email,
+        action: 'device.updated',
+        target: 'device',
+        targetId: device.id,
+        detail: `Device "${device.name}" updated: ${updates.join(', ')}`,
+        ip: req.ip,
+      });
       void sendAlert(
         `InfraWatch: Configuração Alterada - ${device.name}`,
         `A configuração do device "${device.name}" (${device.url}) foi alterada em ${new Date().toISOString()}\nCampos alterados: ${updates.join(', ')}`
@@ -196,6 +215,15 @@ export default function devicesRouter(db) {
       }
 
       await db.device.delete({ where: { id: deviceId } });
+      void logAudit(db, {
+        userId: (req as any).user?.id,
+        email: (req as any).user?.email,
+        action: 'device.deleted',
+        target: 'device',
+        targetId: device.id,
+        detail: `Device "${device.name}" (${device.url}) deleted`,
+        ip: req.ip,
+      });
       void sendAlert(
         `InfraWatch: Device Removido - ${device.name}`,
         `O device "${device.name}" (${device.url}) foi removido do monitoramento em ${new Date().toISOString()}`

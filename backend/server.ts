@@ -9,6 +9,8 @@ import metricsRouter from './routes/metrics.js';
 import usersRouter from './routes/users.js';
 import slaRouter from './routes/sla.js';
 import integrationsRouter from './routes/integrations.js';
+import cronRouter from './routes/cron.js';
+import auditRouter from './routes/audit.js';
 import { verifyToken } from './middleware/auth.js';
 import { startMonitoring } from './monitor.js';
 import { sendNotification, sendAlert, sendSLAViolationAlert } from './notify.js';
@@ -39,12 +41,14 @@ app.use('/api/', apiLimiter);
 // Public routes
 app.use('/api/auth', authRouter(db));
 app.use('/api/integrations', integrationsRouter());
+app.use('/api/cron', cronRouter(db, sendNotification, sendSLAViolationAlert));
 
 // Protected routes
 app.use('/api/devices', verifyToken, devicesRouter(db));
 app.use('/api/metrics', verifyToken, metricsRouter(db));
 app.use('/api/sla', verifyToken, slaRouter(db));
 app.use('/api/users', verifyToken, usersRouter(db));
+app.use('/api/audit', verifyToken, auditRouter(db));
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

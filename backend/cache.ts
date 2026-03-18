@@ -25,16 +25,9 @@ export async function initCache() {
 
   const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
   const client = new Redis(redisUrl, {
-    maxRetriesPerRequest: null,
+    maxRetriesPerRequest: 1,
     enableReadyCheck: true,
     lazyConnect: true,
-    retryStrategy(times) {
-      if (times > 3) return null; // stop reconnecting after 3 attempts
-      return Math.min(times * 200, 2000);
-    },
-    reconnectOnError() {
-      return false; // don't auto-reconnect on command errors
-    },
   });
 
   client.on('error', (err) => {

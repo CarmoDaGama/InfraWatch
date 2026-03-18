@@ -6,6 +6,7 @@ import DashboardPage from './components/DashboardPage'
 import DevicesPage from './components/DevicesPage'
 import IntegrationsPage from './components/IntegrationsPage'
 import UsersPage from './components/UsersPage'
+import AuditLogsPage from './components/AuditLogsPage'
 import LoginPage from './components/LoginPage'
 import { HiExclamationTriangle } from 'react-icons/hi2'
 import { getDevices, updateDevice, getUptimeStats } from './api'
@@ -76,6 +77,9 @@ export default function App() {
   const canDeleteDevices = can('devices:delete')
   const canReadUsers = can('users:read')
   const canUpdateUsers = can('users:update')
+  const canCreateUsers = can('users:create')
+  const canDeleteUsers = can('users:delete')
+  const canReadAudit = can('audit:read')
 
   const fetchData = useCallback(async () => {
     if (!token) return
@@ -190,7 +194,11 @@ export default function App() {
               {activeRoute === 'integrations' && <IntegrationsPage />}
 
               {activeRoute === 'users' && canReadUsers && (
-                <UsersPage canUpdate={canUpdateUsers} />
+                <UsersPage canUpdate={canUpdateUsers} canCreate={canCreateUsers} canDelete={canDeleteUsers} />
+              )}
+
+              {activeRoute === 'audit' && canReadAudit && (
+                <AuditLogsPage />
               )}
             </>
           )}

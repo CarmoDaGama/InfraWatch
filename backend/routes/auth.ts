@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { sendAlert } from '../notify.js';
 import { normalizeRole, resolvePermissions } from '../middleware/rbac.js';
 import { createSession, isSessionStoreEnabled } from '../session-store.js';
+import { logAudit } from '../audit.js';
 
 function getJwtSecret() {
   return process.env.JWT_SECRET ?? 'dev-secret-change-me';
@@ -36,6 +37,12 @@ export default function authRouter(db) {
     try {
       const user = await db.user.findUnique({ where: { email } });
       if (!user) {
+        void logAudit(db, {
+          email,
+          action: 'user.login_failed',
+          detail: 'User not found',
+          ip: req.ip,
+        });
         void sendAlert(
           'InfraWatch Security: Tentativa de Login Falhada',
           `Tentativa de login para email desconhecido "${email}" a partir de IP ${req.ip} em ${new Date().toISOString()}`
@@ -45,6 +52,12 @@ export default function authRouter(db) {
 
       const valid = bcrypt.compareSync(password, user.passwordHash);
       if (!valid) {
+        void logAudit(db, {
+          email,
+          action: 'user.login_failed',
+          detail: 'Invalid password',
+          ip: req.ip,
+        });
         void sendAlert(
           'InfraWatch Security: Tentativa de Login Falhada',
           `Senha incorreta para o utilizador "${email}" a partir de IP ${req.ip} em ${new Date().toISOString()}`
@@ -74,6 +87,13 @@ export default function authRouter(db) {
           ...(jti ? { jwtid: jti } : {}),
         }
       );
+
+      void logAudit(db, {
+        userId: user.id,
+        email: user.email,
+        action: 'user.login',
+        ip: req.ip,
+      });
 
       return res.json({
         token,
