@@ -23,11 +23,17 @@ export async function initCache() {
     return cacheClient;
   }
 
-  const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
+  const rawRedisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
+  const shouldUseTls = rawRedisUrl.startsWith('rediss://') || rawRedisUrl.includes('upstash.io');
+  const redisUrl = shouldUseTls && rawRedisUrl.startsWith('redis://')
+    ? `rediss://${rawRedisUrl.slice('redis://'.length)}`
+    : rawRedisUrl;
+
   const client = new Redis(redisUrl, {
     maxRetriesPerRequest: 1,
     enableReadyCheck: true,
     lazyConnect: true,
+    tls: redisUrl.startsWith('rediss://') ? {} : undefined,
   });
 
   client.on('error', (err) => {
@@ -44,7 +50,7 @@ export async function initCache() {
     await client.connect();
   } catch (err) {
     console.warn('[InfraWatch] Redis unavailable, continuing without cache/session store:', getErrorMessage(err));
-    await client.quit().catch(() => undefined);
+    client.disconnect(false);
     return null;
   }
 

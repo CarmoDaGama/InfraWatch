@@ -6,8 +6,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        // target: 'http://localhost:3001',
-        target: 'https://infra-watch-drab.vercel.app',
+        target: 'http://localhost:3001',
+        // target: 'https://infra-watch-drab.vercel.app',
         changeOrigin: true,
       }
     }

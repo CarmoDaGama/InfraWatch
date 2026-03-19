@@ -51,3 +51,5 @@ export const updateUserRole   = (id, role)     => api.patch(`/users/${id}/role`,
 export const getAuditLogs     = (params)       => api.get('/audit', { params })
 export const getIntegrationEvents = (limit = 100, offset = 0, provider = undefined) =>
   api.get('/integrations/events', { params: { limit, offset, provider } })
+export const getIntegrationConfig = ()         => api.get('/integrations/config')
+export const updateIntegrationConfig = (data)  => api.put('/integrations/config', data)

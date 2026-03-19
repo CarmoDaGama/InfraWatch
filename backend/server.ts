@@ -16,9 +16,11 @@ import { startMonitoring } from './monitor.js';
 import { sendNotification, sendAlert, sendSLAViolationAlert } from './notify.js';
 import { initCache, stopCache } from './cache.js';
 import { initQueues, stopQueues } from './queue.js';
+import { hydrateIntegrationEnvFromDb } from './integrations/config-store.js';
 
 await initCache();
 await ensureDbReady();
+await hydrateIntegrationEnvFromDb(db).catch(() => undefined);
 await initQueues({ db, notifyFn: sendNotification, slaAlertFn: sendSLAViolationAlert });
 
 const app = express();
@@ -40,7 +42,7 @@ app.use('/api/', apiLimiter);
 
 // Public routes
 app.use('/api/auth', authRouter(db));
-app.use('/api/integrations', integrationsRouter());
+app.use('/api/integrations', integrationsRouter(db));
 app.use('/api/cron', cronRouter(db, sendNotification, sendSLAViolationAlert));
 
 // Protected routes
