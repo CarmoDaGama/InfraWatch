@@ -10,6 +10,7 @@
   },
   "scripts": {
     "postinstall": "prisma generate",
+    "predev": "prisma generate",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "start:docker": "prisma migrate deploy && node dist/server.js",

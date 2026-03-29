@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { processInboundEvent } from '../integrations/manager.js';
 import { getEventLog, getEventsByProvider } from '../integrations/events-log.js';
+import { verifyToken } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
+import { getIntegrationConfig, saveIntegrationConfig } from '../integrations/config-store.js';
 
 function hasValidWebhookSecret(req) {
   const expected = process.env.INTEGRATIONS_WEBHOOK_SECRET;
@@ -10,7 +13,7 @@ function hasValidWebhookSecret(req) {
   return provided.length > 0 && provided === expected;
 }
 
-export default function integrationsRouter() {
+export default function integrationsRouter(db: any) {
   const router = Router();
 
   router.post('/webhook/:provider', async (req, res) => {
@@ -55,6 +58,32 @@ export default function integrationsRouter() {
       return res.status(400).json({
         success: false,
         error: err instanceof Error ? err.message : 'Failed to fetch events',
+      });
+    }
+  });
+
+  // Read integration settings (admin)
+  router.get('/config', verifyToken, requirePermission('integrations:manage'), async (_req, res) => {
+    try {
+      const config = await getIntegrationConfig(db);
+      return res.json(config);
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to read integration config',
+      });
+    }
+  });
+
+  // Update integration settings (admin)
+  router.put('/config', verifyToken, requirePermission('integrations:manage'), async (req, res) => {
+    try {
+      const config = await saveIntegrationConfig(db, req.body ?? {});
+      return res.json({ success: true, config });
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to save integration config',
       });
     }
   });
